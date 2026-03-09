@@ -26,6 +26,8 @@ namespace Kojiko.MCharacterController.Core
         [Tooltip("Maximum lateral (strafe) movement speed on the ground.")]
         [SerializeField] private float _strafeSpeed = 4f;
 
+        private float _speedMultiplier = 1f;
+
         [Header("Horizontal Acceleration")]
         [Tooltip("Acceleration when speeding up or changing direction on the ground (m/s^2).")]
         [SerializeField] private float _acceleration = 20f;
@@ -65,6 +67,16 @@ namespace Kojiko.MCharacterController.Core
         /// Current horizontal speed (magnitude of velocity on the XZ plane).
         /// </summary>
         public float CurrentSpeed { get; private set; }
+
+        /// <summary>
+        /// Global multiplier applied to computed ground speeds (e.g. from sprint).
+        /// Defaults to 1. Abilities can change this per-frame.
+        /// </summary>
+        public float SpeedMultiplier
+        {
+            get => _speedMultiplier;
+            set => _speedMultiplier = Mathf.Max(0f, value); // no negative speeds
+        }
 
         /// <summary>
         /// Current scalar acceleration in m/s^2, based on the change in horizontal
@@ -133,6 +145,8 @@ namespace Kojiko.MCharacterController.Core
 
             CurrentSpeed = 0f;
             CurrentAcceleration = 0f;
+
+            _speedMultiplier = 1f; 
         }
 
         /// <summary>
@@ -233,14 +247,18 @@ namespace Kojiko.MCharacterController.Core
             right.Normalize();
 
             float forwardDot = Vector3.Dot(dir, forward); // > 0 forward, < 0 backward
-            float rightDot = Vector3.Dot(dir, right);   // > 0 right,   < 0 left
+            float rightDot = Vector3.Dot(dir, right);     // > 0 right,   < 0 left
 
-            // Determine directional speeds.
+            // --- NEW: cache local multiplier (default 1) ---
+            float mult = _speedMultiplier;
+
+            // Determine directional speeds with multiplier applied.
             float forwardSpeed =
-                forwardDot > 0f ? _forwardSpeed :
-                (forwardDot < 0f ? _backwardSpeed : 0f);
+                forwardDot > 0f ? _forwardSpeed * mult :
+                (forwardDot < 0f ? _backwardSpeed * mult : 0f);
 
-            float strafeSpeed = Mathf.Abs(rightDot) > 0.0001f ? _strafeSpeed : 0f;
+            float strafeSpeed =
+                Mathf.Abs(rightDot) > 0.0001f ? _strafeSpeed * mult : 0f;
 
             // Convert the directional intent into a target velocity vector.
             Vector3 forwardComponent = forward * (forwardDot * forwardSpeed);

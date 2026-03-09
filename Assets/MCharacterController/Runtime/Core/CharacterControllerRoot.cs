@@ -40,6 +40,10 @@ namespace Kojiko.MCharacterController.Core
         [Tooltip("Active camera rig for this character (e.g., FirstPersonCameraRig).")]
         [SerializeField] private CameraRigBase _cameraRig;
 
+        [Header("Abilities References")]
+        [Tooltip("ability controller.")]
+        [SerializeField] private CharacterAbilityController _abilityController;
+
         // Internal cached interface
         private ICcInputSource _inputSource;
 
@@ -49,17 +53,19 @@ namespace Kojiko.MCharacterController.Core
             if (_motor == null)
             {
                 _motor = GetComponent<CharacterMotor>();
-                if (_motor == null)
-                {
-                    UnityEngine.Debug.LogError("[CharacterControllerRoot] CharacterMotor reference is missing.", this);
-                    enabled = false;
-                    return;
-                }
+            }
+
+            if (_motor == null)
+            {
+                UnityEngine.Debug.LogError("[CharacterControllerRoot] CharacterMotor reference is missing.", this);
+                enabled = false;
+                return;
             }
 
             // STEP 2: Cast the provided MonoBehaviour to ICcInputSource.
             if (_inputSourceBehaviour == null)
             {
+                // If not assigned, try to find any MonoBehaviour that implements ICcInputSource on this GameObject.
                 _inputSourceBehaviour = GetComponent<MonoBehaviour>();
             }
 
@@ -80,10 +86,20 @@ namespace Kojiko.MCharacterController.Core
             {
                 UnityEngine.Debug.LogWarning("[CharacterControllerRoot] No CameraRigBase assigned. Character will move but not look.", this);
             }
+
+            // STEP 4: Initialize ability controller AFTER motor and input are ready.
+            if (_abilityController != null)
+            {
+                UnityEngine.Debug.Log("[CharacterControllerRoot] Initializing ability controller.", this);
+                _abilityController.Initialize(_motor, this, _inputSource, _cameraRig);
+            }
         }
 
         private void Update()
         {
+            float dt = Time.deltaTime;
+            if (dt <= 0f) return;
+
             // STEP 1: Read input axes from the input source.
             Vector2 moveAxis = _inputSource.MoveAxis;
             Vector2 lookAxis = _inputSource.LookAxis;
@@ -91,14 +107,20 @@ namespace Kojiko.MCharacterController.Core
             // STEP 2: Give the look input to the camera rig for yaw/pitch handling.
             if (_cameraRig != null)
             {
-                _cameraRig.HandleLook(lookAxis, Time.deltaTime);
+                _cameraRig.HandleLook(lookAxis, dt);
             }
 
             // STEP 3: Convert moveAxis to a world-space move direction based on character yaw.
             Vector3 moveDirection = TransformMoveInput(moveAxis);
 
+            // STEP 3.5: Let abilities tweak moveDirection or other state before stepping the motor.
+            _abilityController?.TickAbilities(dt, ref moveDirection);
+
             // STEP 4: Forward the computed move direction to the motor.
-            _motor.Step(moveDirection, Time.deltaTime);
+            _motor.Step(moveDirection, dt);
+
+            // STEP 5: Let abilities react after the motor has stepped.
+            _abilityController?.PostStepAbilities(dt);
         }
 
         /// <summary>

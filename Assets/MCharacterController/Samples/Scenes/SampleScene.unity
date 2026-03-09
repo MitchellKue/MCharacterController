@@ -370,6 +370,9 @@ GameObject:
   - component: {fileID: 610175630}
   - component: {fileID: 610175629}
   - component: {fileID: 610175628}
+  - component: {fileID: 610175634}
+  - component: {fileID: 610175635}
+  - component: {fileID: 610175636}
   m_Layer: 0
   m_Name: CharacterController_FPS
   m_TagString: Untagged
@@ -414,9 +417,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 937ccad78d0945f4dbd2acc022a89f5b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _motor: {fileID: 610175630}
+  _motor: {fileID: 0}
   _inputSourceBehaviour: {fileID: 610175631}
   _cameraRig: {fileID: 1179845646}
+  _abilityController: {fileID: 610175634}
 --- !u!114 &610175630
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -435,7 +439,7 @@ MonoBehaviour:
   _acceleration: 20
   _deceleration: 20
   _airAccelerationMultiplier: 0.5
-  _gravity: -9.81
+  _gravity: -10
   _groundedGravity: -1
 --- !u!114 &610175631
 MonoBehaviour:
@@ -503,6 +507,57 @@ Transform:
   - {fileID: 1394625833}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &610175634
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 610175627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7982d71a783246b44bbf6c02368d25f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _abilityBehaviours:
+  - {fileID: 610175635}
+  - {fileID: 610175636}
+--- !u!114 &610175635
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 610175627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ac5c24c50e429948957ae01a884cb24, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _requireMoveInput: 1
+  _minMoveMagnitudeToSprint: 0.8
+  _restrictToForward: 1
+  _maxForwardAngle: 45
+  _sprintSpeedMultiplier: 1.5
+  _accelerationMultiplierWhileSprinting: 1
+--- !u!114 &610175636
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 610175627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390c349e851052444b6d8edae3693838, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _jumpSpeed: 5
+  _requireGrounded: 1
+  _coyoteTime: 0.1
+  _jumpBufferTime: 0.1
+  _isJumping: 0
+  _jumpQueued: 0
 --- !u!1 &633763179
 GameObject:
   m_ObjectHideFlags: 0

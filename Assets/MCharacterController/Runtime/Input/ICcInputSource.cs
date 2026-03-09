@@ -35,19 +35,16 @@ namespace Kojiko.MCharacterController.Input
 
         /// <summary>
         /// True only on the frame the jump button is pressed.
-        /// (Reserved for later ability implementation.)
         /// </summary>
         bool JumpPressed { get; }
 
         /// <summary>
         /// True while the jump button is held.
-        /// (Reserved for later ability implementation.)
         /// </summary>
         bool JumpHeld { get; }
 
         /// <summary>
         /// True while the sprint button is held.
-        /// (Reserved for later ability implementation.)
         /// </summary>
         bool SprintHeld { get; }
 
