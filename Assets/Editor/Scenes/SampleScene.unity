@@ -164,12 +164,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _motor: {fileID: 610175630}
-  _originTransform: {fileID: 0}
-  _maxSpeed: 5
-  _lineLengthScale: 0.25
-  _maxLineLength: 2
-  _endpointSphereRadius: 0.1
-  _lineColor: {r: 1, g: 1, b: 0, a: 1}
+  _ellipseColor: {r: 0, g: 1, b: 1, a: 1}
+  _segments: 20
+  _directionColor: {r: 0, g: 1, b: 1, a: 1}
+  _acceleratingColor: {r: 0, g: 1, b: 0, a: 1}
+  _deceleratingColor: {r: 1, g: 0, b: 0, a: 1}
+  _colorByAcceleration: 1
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -429,7 +429,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b42867d4f4ef43a498a22dcee3c84f27, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _moveSpeed: 5
+  _forwardSpeed: 5
+  _backwardSpeed: 4
+  _strafeSpeed: 3.5
+  _acceleration: 20
+  _deceleration: 20
+  _airAccelerationMultiplier: 0.5
   _gravity: -9.81
   _groundedGravity: -1
 --- !u!114 &610175631

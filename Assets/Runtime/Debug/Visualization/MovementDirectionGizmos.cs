@@ -1,124 +1,168 @@
-// File: Runtime/Debug/Visualization/MovementDirectionGizmos.cs
-// Namespace: Kojiko.MCharacterController.Debug
-//
-// Summary:
-// Draws a gizmo line representing the character's current movement velocity,
-// using data exposed by CharacterMotor. The line's direction is the current
-// horizontal movement direction, and its length is proportional to the
-// current horizontal speed. A wire sphere is drawn at the end.
-// Uses only Unity built-in Gizmos; no custom shaders or GL calls.
-// The CharacterMotor does NOT know about this component.
-//
-// Usage:
-// - Attach this to the character root GameObject (or body).
-// - Assign "Motor" to the CharacterMotor on the same character.
-// - Optionally assign "Origin Transform" if the arrow should start somewhere
-//   other than the motor's transform (e.g., a visual mesh root).
-// - Ensure the Scene view Gizmos toggle is enabled.
-
-using UnityEngine;
+﻿using UnityEngine;
 using Kojiko.MCharacterController.Core;
 
-namespace Kojiko.MCharacterController.Debug
+[ExecuteAlways]
+public class MovementDirectionGizmos : MonoBehaviour
 {
-    /// <summary>
-    /// Visualizes CharacterMotor.HorizontalVelocity as a gizmo arrow:
-    /// - Line origin: Origin transform (or motor transform).
-    /// - Line direction: motor.HorizontalVelocity.normalized.
-    /// - Line length: proportional to motor.CurrentSpeed.
-    /// </summary>
-    [ExecuteAlways]
-    public class MovementDirectionGizmos : MonoBehaviour
+    [SerializeField] private CharacterMotor _motor;
+
+    [Header("Ellipse (Max Speed Shape)")]
+    [SerializeField] private Color _ellipseColor = Color.cyan;
+    [SerializeField, Min(8)] private int _segments = 64;
+
+    [Header("Direction / Acceleration Line")]
+    [SerializeField] private Color _directionColor = Color.yellow;
+    [SerializeField] private Color _acceleratingColor = Color.green;
+    [SerializeField] private Color _deceleratingColor = Color.red;
+
+    [Tooltip("Color the direction line based on CurrentAcceleration.")]
+    [SerializeField] private bool _colorByAcceleration = true;
+
+    private CharacterController _controller;
+
+    private void OnValidate()
     {
-        [Header("References")]
+        if (_segments < 8) _segments = 8;
+    }
 
-        [Tooltip("CharacterMotor providing velocity data for visualization.")]
-        [SerializeField]
-        private CharacterMotor _motor;
+    private void EnsureRefs()
+    {
+        if (_motor == null)
+            _motor = GetComponent<CharacterMotor>();
 
-        [Tooltip("Optional origin transform for the velocity arrow.\n" +
-                 "If null, uses the motor's transform.")]
-        [SerializeField]
-        private Transform _originTransform;
+        if (_motor != null && _controller == null)
+            _controller = _motor.GetComponent<CharacterController>();
+    }
 
-        [Header("Line Scaling")]
+    private void OnDrawGizmos()
+    {
+        DrawGizmosInternal();
+    }
 
-        [Tooltip("Optional maximum speed used to normalize line length.\n" +
-                 "If > 0, line length will be (speed / maxSpeed) * MaxLineLength.\n" +
-                 "If <= 0, line length will be (speed * LineLengthScale).")]
-        [SerializeField]
-        private float _maxSpeed = 0f;
+    private void OnDrawGizmosSelected()
+    {
+        DrawGizmosInternal();
+    }
 
-        [Tooltip("If MaxSpeed <= 0, lineLength = speed * LineLengthScale.")]
-        [SerializeField]
-        private float _lineLengthScale = 0.25f;
+    private void DrawGizmosInternal()
+    {
+        EnsureRefs();
+        if (_motor == null)
+            return;
 
-        [Tooltip("If MaxSpeed > 0, this is the line length at MaxSpeed.")]
-        [SerializeField]
-        private float _maxLineLength = 2f;
-
-        [Header("Appearance")]
-
-        [Tooltip("Radius of the wire sphere at the end of the line.")]
-        [SerializeField]
-        private float _endpointSphereRadius = 0.1f;
-
-        [Tooltip("Color of the movement velocity line.")]
-        [SerializeField]
-        private Color _lineColor = Color.green;
-
-        private void OnDrawGizmos()
+        // Center on character's feet on XZ plane
+        Vector3 center = transform.position;
+        if (_controller != null)
         {
-            DrawVelocityGizmos();
+            center = _controller.bounds.center;
+            center.y = _controller.bounds.min.y;
         }
 
-        private void OnDrawGizmosSelected()
+        DrawSpeedEllipse(center);
+        DrawDirectionAndAccelerationLine(center);
+    }
+
+    private void DrawSpeedEllipse(Vector3 center)
+    {
+        float forwardSpeed = _motor.ForwardSpeed;
+        float backwardSpeed = _motor.BackwardSpeed;
+        float strafeSpeed = _motor.StrafeSpeed;
+
+        // If all speeds are almost zero, nothing to draw.
+        if (forwardSpeed < 0.01f && backwardSpeed < 0.01f && strafeSpeed < 0.01f)
+            return;
+
+        Gizmos.color = _ellipseColor;
+
+        // Forward/backward/strafe are in the motor's local space:
+        //   +local Z = forward radius
+        //   -local Z = backward radius
+        //   ±local X = strafe radius
+        Vector3 localForward = transform.forward;
+        localForward.y = 0f;
+        localForward.Normalize();
+
+        Vector3 localRight = transform.right;
+        localRight.y = 0f;
+        localRight.Normalize();
+
+        // We build an ellipse where:
+        //   at angle = 0   -> local +X (right)  => radius = strafeSpeed
+        //   at angle = 90  -> local +Z (forward)=> radius = forwardSpeed
+        //   at angle = 180 -> local -X (left)   => radius = strafeSpeed
+        //   at angle = 270 -> local -Z (back)   => radius = backwardSpeed
+        //
+        // Between those points we smoothly interpolate.
+        float halfPi = 0.5f * Mathf.PI;
+        float twoPi = 2f * Mathf.PI;
+        float angleStep = twoPi / _segments;
+
+        Vector3 firstPoint = Vector3.zero;
+        Vector3 prevPoint = Vector3.zero;
+
+        for (int i = 0; i <= _segments; i++)
         {
-            // Intentionally left empty; gizmos are always drawn from OnDrawGizmos.
-        }
+            float angle = i * angleStep; // 0..2π
 
-        /// <summary>
-        /// Draws the movement velocity line and endpoint sphere based on
-        /// CharacterMotor.HorizontalVelocity and CharacterMotor.CurrentSpeed.
-        /// </summary>
-        private void DrawVelocityGizmos()
-        {
-            if (_motor == null)
-                return;
+            // Base unit circle (cos, sin).
+            float xUnit = Mathf.Cos(angle); // side axis
+            float zUnit = Mathf.Sin(angle); // forward/back axis
 
-            Transform originTransform = _originTransform != null
-                ? _originTransform
-                : _motor.transform;
+            // Determine radius along forward/back axis:
+            //   positive zUnit => forward side, use forwardSpeed
+            //   negative zUnit => backward side, use backwardSpeed
+            float zRadius = zUnit >= 0f ? forwardSpeed : backwardSpeed;
+            float xRadius = strafeSpeed;
 
-            if (originTransform == null)
-                return;
+            // Now scale the unit circle by these radii.
+            float localX = xUnit * xRadius;
+            float localZ = zUnit * zRadius; // sign already in zUnit
 
-            Vector3 horizontalVelocity = _motor.HorizontalVelocity;
-            float speed = _motor.CurrentSpeed;
+            // Convert from local XZ to world.
+            Vector3 point =
+                center +
+                (localRight * localX) +
+                (localForward * localZ);
 
-            // If speed is essentially zero, skip drawing.
-            if (speed <= 0.0001f || horizontalVelocity.sqrMagnitude <= 0.000001f)
-                return;
-
-            // Compute line length from speed.
-            float lineLength;
-            if (_maxSpeed > 0f)
+            if (i > 0)
             {
-                float t = Mathf.Clamp01(speed / _maxSpeed);
-                lineLength = t * _maxLineLength;
+                Gizmos.DrawLine(prevPoint, point);
             }
             else
             {
-                lineLength = speed * _lineLengthScale;
+                firstPoint = point;
             }
 
-            Vector3 origin = originTransform.position;
-            Vector3 dir = horizontalVelocity.normalized;
-            Vector3 end = origin + dir * lineLength;
-
-            Gizmos.color = _lineColor;
-            Gizmos.DrawLine(origin, end);
-            Gizmos.DrawWireSphere(end, _endpointSphereRadius);
+            prevPoint = point;
         }
+
+        Gizmos.DrawLine(prevPoint, firstPoint);
+    }
+
+    private void DrawDirectionAndAccelerationLine(Vector3 center)
+    {
+        if (!Application.isPlaying)
+            return;
+
+        Vector3 horizontalVel = _motor.HorizontalVelocity;
+        horizontalVel.y = 0f;
+
+        if (horizontalVel.sqrMagnitude <= 0.0001f)
+            return;
+
+        Color lineColor = _directionColor;
+
+        if (_colorByAcceleration)
+        {
+            float accel = _motor.CurrentAcceleration;
+
+            if (accel > 0.01f)
+                lineColor = _acceleratingColor;
+            else if (accel < -0.01f)
+                lineColor = _deceleratingColor;
+        }
+
+        Gizmos.color = lineColor;
+        Gizmos.DrawLine(center, center + horizontalVel);
     }
 }

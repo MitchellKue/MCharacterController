@@ -3,26 +3,38 @@
 //
 // Summary:
 // 1. Wraps Unity's CharacterController to handle movement and gravity.
-// 2. Receives desired movement directions from CharacterControllerRoot each frame.
-// 3. Maintains grounded and velocity state for use by abilities and other systems.
-// 4. Computes horizontal speed and scalar acceleration for debug/telemetry systems.
-// 5. NEW: Exposes horizontal velocity as a public read-only property for visualization.
+// 2. Accepts a desired horizontal move direction from higher-level logic.
+// 3. Applies directional speeds (forward, backward, strafe) and
+//    acceleration/deceleration with reduced air acceleration.
+// 4. Maintains grounded state and full velocity vector.
+// 5. Exposes horizontal speed and scalar acceleration for debug systems.
 
 using UnityEngine;
 
 namespace Kojiko.MCharacterController.Core
 {
-    /// <summary>
-    /// 1. STEP 1: Accept a desired move direction from higher-level logic (e.g., input + camera).
-    /// 2. STEP 2: Apply gravity and grounded logic, building a final velocity vector.
-    /// 3. STEP 3: Move the CharacterController component with this velocity each frame.
-    /// 4. Additionally: Exposes horizontal speed and scalar acceleration for debug systems.
-    /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public class CharacterMotor : MonoBehaviour
     {
-        [Header("Movement")]
-        [SerializeField] private float _moveSpeed = 5f;
+        [Header("Movement Speeds")]
+        [Tooltip("Maximum forward movement speed on the ground.")]
+        [SerializeField] private float _forwardSpeed = 5f;
+
+        [Tooltip("Maximum backward movement speed on the ground.")]
+        [SerializeField] private float _backwardSpeed = 3f;
+
+        [Tooltip("Maximum lateral (strafe) movement speed on the ground.")]
+        [SerializeField] private float _strafeSpeed = 4f;
+
+        [Header("Horizontal Acceleration")]
+        [Tooltip("Acceleration when speeding up or changing direction on the ground (m/s^2).")]
+        [SerializeField] private float _acceleration = 20f;
+
+        [Tooltip("Deceleration when slowing down or stopping on the ground (m/s^2).")]
+        [SerializeField] private float _deceleration = 25f;
+
+        [Tooltip("Multiplier applied to acceleration/deceleration while in the air.")]
+        [SerializeField] private float _airAccelerationMultiplier = 0.5f;
 
         [Header("Gravity")]
         [SerializeField] private float _gravity = -9.81f;
@@ -45,26 +57,40 @@ namespace Kojiko.MCharacterController.Core
         public Vector3 Velocity => _velocity;
 
         /// <summary>
-        /// NEW:
         /// Horizontal velocity in world space (Y component is always 0).
-        /// This is useful for visualization systems that only care about
-        /// movement along the ground plane.
         /// </summary>
-        public Vector3 HorizontalVelocity => _currentHorizontalVelocity; // NEW
+        public Vector3 HorizontalVelocity => _currentHorizontalVelocity;
 
         /// <summary>
-        /// Current horizontal speed (magnitude of Velocity on the XZ plane).
-        /// Useful for debug and UI systems that want a stable "move speed" value.
+        /// Current horizontal speed (magnitude of velocity on the XZ plane).
         /// </summary>
         public float CurrentSpeed { get; private set; }
 
         /// <summary>
         /// Current scalar acceleration in m/s^2, based on the change in horizontal
         /// speed over time. Positive when speeding up, negative when slowing down.
-        /// This is intentionally a scalar to make it easy for debug visualization
-        /// systems (e.g., gizmos, graphs) to interpret and display.
         /// </summary>
         public float CurrentAcceleration { get; private set; }
+
+        /// <summary>
+        /// Forward speed configured on the motor.
+        /// </summary>
+        public float ForwardSpeed => _forwardSpeed;
+
+        /// <summary>
+        /// Backward speed configured on the motor.
+        /// </summary>
+        public float BackwardSpeed => _backwardSpeed;
+
+        /// <summary>
+        /// Strafe (side) speed configured on the motor.
+        /// </summary>
+        public float StrafeSpeed => _strafeSpeed;
+
+        /// <summary>
+        /// Convenience: maximum of forward/backward/strafe speeds.
+        /// </summary>
+        public float MaxGroundSpeed => Mathf.Max(_forwardSpeed, _backwardSpeed, _strafeSpeed);
 
         // --------------------------------------------------------------------
         // Internal references
@@ -82,15 +108,12 @@ namespace Kojiko.MCharacterController.Core
         private Vector3 _velocity;
 
         /// <summary>
-        /// NEW:
-        /// Current horizontal velocity (XZ only), cached so HorizontalVelocity
-        /// can be exposed without recomputing each time.
+        /// Current horizontal velocity (XZ only).
         /// </summary>
-        private Vector3 _currentHorizontalVelocity; // NEW
+        private Vector3 _currentHorizontalVelocity;
 
         /// <summary>
         /// Previous frame's horizontal velocity, used to compute acceleration.
-        /// Only the XZ components are used for the acceleration calculation.
         /// </summary>
         private Vector3 _prevHorizontalVelocity;
 
@@ -101,49 +124,61 @@ namespace Kojiko.MCharacterController.Core
 
         private void Awake()
         {
-            // STEP 1: Cache reference to the CharacterController.
             _characterController = GetComponent<CharacterController>();
 
-            // STEP 2: Initialize internal velocity.
             _velocity = Vector3.zero;
-
-            // NEW: Initialize horizontal and acceleration-related state.
-            _currentHorizontalVelocity = Vector3.zero; // NEW
+            _currentHorizontalVelocity = Vector3.zero;
             _prevHorizontalVelocity = Vector3.zero;
             _hasPrevVelocity = false;
+
             CurrentSpeed = 0f;
             CurrentAcceleration = 0f;
         }
 
         /// <summary>
-        /// Called every frame by CharacterControllerRoot to advance movement.
+        /// Called every frame by higher-level logic to advance movement.
         /// </summary>
         /// <param name="desiredMoveWorld">
-        /// Desired horizontal move direction in world space (y should be 0).
+        /// Desired horizontal move vector in world space (Y should be 0).
+        /// Typically derived from input + camera orientation. This can be
+        /// non-normalized; only the direction is used here.
         /// </param>
-        /// <param name="deltaTime">
-        /// Time step for this frame.
-        /// </param>
+        /// <param name="deltaTime">Frame delta time.</param>
         public void Step(Vector3 desiredMoveWorld, float deltaTime)
         {
             if (deltaTime <= 0f)
                 return;
 
-            // STEP 1: Check if the character is grounded using CharacterController.
+            // 1. Grounded state
             IsGrounded = _characterController.isGrounded;
 
-            // STEP 2: Compute horizontal velocity based on desired move direction and speed.
-            // Ensure desiredMoveWorld has no vertical component.
+            // Ensure desired move has no vertical component.
             desiredMoveWorld.y = 0f;
-            var desiredHorizontal = desiredMoveWorld.normalized * _moveSpeed;
 
-            // Preserve vertical velocity from previous frame.
-            var verticalVelocity = _velocity.y;
+            // 2. Horizontal velocity (with acceleration model)
+            Vector3 currentHorizontal = _currentHorizontalVelocity;
+            Vector3 targetHorizontal = ComputeTargetHorizontalVelocity(desiredMoveWorld);
 
-            // STEP 3: Update vertical velocity with gravity or grounded gravity.
+            float accelMultiplier = IsGrounded ? 1f : _airAccelerationMultiplier;
+            float accel = _acceleration * accelMultiplier;
+            float decel = _deceleration * accelMultiplier;
+
+            Vector3 newHorizontal = MoveHorizontalTowards(
+                currentHorizontal,
+                targetHorizontal,
+                accel,
+                decel,
+                deltaTime
+            );
+
+            _currentHorizontalVelocity = newHorizontal;
+
+            // 3. Vertical velocity (gravity)
+            float verticalVelocity = _velocity.y;
+
             if (IsGrounded && verticalVelocity < 0f)
             {
-                // Small downward force keeps the character grounded.
+                // Small downward force keeps the character snapped to ground surfaces.
                 verticalVelocity = _groundedGravity;
             }
             else
@@ -151,80 +186,178 @@ namespace Kojiko.MCharacterController.Core
                 verticalVelocity += _gravity * deltaTime;
             }
 
-            // STEP 4: Build the final velocity vector with horizontal + vertical parts.
-            _velocity = new Vector3(desiredHorizontal.x, verticalVelocity, desiredHorizontal.z);
+            // 4. Combine horizontal + vertical into final velocity.
+            _velocity = new Vector3(newHorizontal.x, verticalVelocity, newHorizontal.z);
 
-            // NEW: Cache the horizontal component for HorizontalVelocity.
-            _currentHorizontalVelocity = new Vector3(_velocity.x, 0f, _velocity.z); // NEW
-
-            // NEW STEP 4.5: Update speed and acceleration for this frame.
+            // 5. Update debug/telemetry values.
             UpdateSpeedAndAcceleration(deltaTime);
 
-            // STEP 5: Move the CharacterController by velocity * deltaTime.
-            var motion = _velocity * deltaTime;
+            // 6. Move CharacterController.
+            Vector3 motion = _velocity * deltaTime;
             _characterController.Move(motion);
         }
 
         /// <summary>
-        /// Allows external systems (e.g., jump abilities) to override the vertical velocity.
+        /// Allows external systems (e.g., jump ability) to override the vertical velocity.
         /// </summary>
-        /// <param name="newVerticalVelocity">
-        /// The new vertical component for the internal velocity vector.
-        /// </param>
         public void SetVerticalVelocity(float newVerticalVelocity)
         {
-            // STEP 1: Read current horizontal components.
-            var horizontal = new Vector3(_velocity.x, 0f, _velocity.z);
+            Vector3 horizontal = _currentHorizontalVelocity;
+            _velocity = new Vector3(horizontal.x, newVerticalVelocity, horizontal.z);
+        }
 
-            // STEP 2: Combine horizontal with the provided vertical value.
-            _velocity = horizontal + Vector3.up * newVerticalVelocity;
+        // --------------------------------------------------------------------
+        // Horizontal movement helpers
+        // --------------------------------------------------------------------
 
-            // STEP 3: This will be applied on the next Step() call.
+        /// <summary>
+        /// Computes the target horizontal velocity based on input direction and
+        /// forward/backward/strafe speeds.
+        /// </summary>
+        private Vector3 ComputeTargetHorizontalVelocity(Vector3 desiredMoveWorld)
+        {
+            // No input -> no target horizontal motion.
+            if (desiredMoveWorld.sqrMagnitude <= 0.000001f)
+                return Vector3.zero;
+
+            // Direction on the XZ plane.
+            Vector3 dir = desiredMoveWorld.normalized;
+
+            // Project onto local forward/right to determine intent.
+            Vector3 forward = transform.forward;
+            forward.y = 0f;
+            forward.Normalize();
+
+            Vector3 right = transform.right;
+            right.y = 0f;
+            right.Normalize();
+
+            float forwardDot = Vector3.Dot(dir, forward); // > 0 forward, < 0 backward
+            float rightDot = Vector3.Dot(dir, right);   // > 0 right,   < 0 left
+
+            // Determine directional speeds.
+            float forwardSpeed =
+                forwardDot > 0f ? _forwardSpeed :
+                (forwardDot < 0f ? _backwardSpeed : 0f);
+
+            float strafeSpeed = Mathf.Abs(rightDot) > 0.0001f ? _strafeSpeed : 0f;
+
+            // Convert the directional intent into a target velocity vector.
+            Vector3 forwardComponent = forward * (forwardDot * forwardSpeed);
+            Vector3 strafeComponent = right * (rightDot * strafeSpeed);
+
+            Vector3 target = forwardComponent + strafeComponent;
+            return target;
         }
 
         /// <summary>
-        /// Computes CurrentSpeed and CurrentAcceleration based on the current
-        /// internal velocity and the previous frame's horizontal velocity.
-        /// This method should be called exactly once per Step() call, after
-        /// _velocity has been updated for this frame.
+        /// Moves the current horizontal velocity toward target, using different
+        /// rates for acceleration and deceleration.
         /// </summary>
-        /// <param name="deltaTime">
-        /// Time step used for this movement step.
-        /// </param>
+        private static Vector3 MoveHorizontalTowards(
+            Vector3 current,
+            Vector3 target,
+            float accel,
+            float decel,
+            float deltaTime)
+        {
+            if (deltaTime <= 0f)
+                return current;
+
+            float maxAccelDelta = accel * deltaTime;
+            float maxDecelDelta = decel * deltaTime;
+
+            float currentSpeed = current.magnitude;
+            float targetSpeed = target.magnitude;
+
+            // Case 1: No target input -> decelerate to stop.
+            if (targetSpeed <= 0.000001f)
+            {
+                if (currentSpeed <= 0f)
+                    return Vector3.zero;
+
+                float newSpeed = Mathf.Max(currentSpeed - maxDecelDelta, 0f);
+                return currentSpeed > 0f
+                    ? current * (newSpeed / currentSpeed)
+                    : Vector3.zero;
+            }
+
+            // Normalize directions.
+            Vector3 targetDir = target / targetSpeed;
+            Vector3 currentDir = currentSpeed > 0f
+                ? current / Mathf.Max(currentSpeed, 0.000001f)
+                : targetDir;
+
+            float directionDot = Vector3.Dot(currentDir, targetDir);
+
+            // Case 2: Starting from rest -> accelerate toward target.
+            if (currentSpeed <= 0f)
+            {
+                float newSpeed = Mathf.Min(targetSpeed, maxAccelDelta);
+                return targetDir * newSpeed;
+            }
+
+            // Case 3: Roughly same direction -> accelerate/decelerate toward target speed.
+            if (directionDot > 0f)
+            {
+                float speedDelta = targetSpeed - currentSpeed;
+                float maxDelta = Mathf.Min(maxAccelDelta, Mathf.Abs(speedDelta));
+
+                float newSpeed = currentSpeed + Mathf.Sign(speedDelta) * maxDelta;
+                return targetDir * newSpeed;
+            }
+
+            // Case 4: Opposite or very different direction.
+            // First brake in current direction.
+            float speedAfterBrake = currentSpeed - maxDecelDelta;
+
+            if (speedAfterBrake > 0f)
+            {
+                // Still moving in old direction; just reduce magnitude.
+                return currentDir * speedAfterBrake;
+            }
+
+            // We effectively came to a stop (or overshot slightly below 0).
+            // Use any "overshoot" + accel to start in target direction.
+            float overshoot = -speedAfterBrake; // how far below zero we went
+            float accelBudget = Mathf.Max(0f, maxAccelDelta - overshoot);
+
+            float newSpeedTarget = Mathf.Min(targetSpeed, accelBudget);
+            return targetDir * newSpeedTarget;
+        }
+
+        // --------------------------------------------------------------------
+        // Debug / telemetry helpers
+        // --------------------------------------------------------------------
+
+        /// <summary>
+        /// Computes CurrentSpeed and CurrentAcceleration based on the current
+        /// horizontal velocity and previous frame's horizontal velocity.
+        /// </summary>
         private void UpdateSpeedAndAcceleration(float deltaTime)
         {
             if (deltaTime <= 0f)
             {
-                // Degenerate case: cannot compute acceleration without a positive time step.
                 CurrentAcceleration = 0f;
                 return;
             }
 
-            // Use the cached horizontal velocity.
-            var currentHorizontal = _currentHorizontalVelocity; // NEW
+            Vector3 currentHorizontal = _currentHorizontalVelocity;
 
-            // Compute current horizontal speed magnitude.
             CurrentSpeed = currentHorizontal.magnitude;
 
             if (!_hasPrevVelocity)
             {
-                // First frame: we do not yet have a baseline to compute acceleration from.
                 CurrentAcceleration = 0f;
                 _prevHorizontalVelocity = currentHorizontal;
                 _hasPrevVelocity = true;
                 return;
             }
 
-            // Compute previous frame's horizontal speed.
             float prevSpeed = _prevHorizontalVelocity.magnitude;
-
-            // Change in speed over this time step.
             float speedDelta = CurrentSpeed - prevSpeed;
-
-            // Acceleration = delta speed / delta time (m/s^2).
             CurrentAcceleration = speedDelta / deltaTime;
 
-            // Cache this frame's horizontal velocity for next frame's computation.
             _prevHorizontalVelocity = currentHorizontal;
         }
     }
