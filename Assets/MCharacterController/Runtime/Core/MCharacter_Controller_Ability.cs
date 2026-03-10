@@ -32,7 +32,7 @@ using Kojiko.MCharacterController.Camera;
 namespace Kojiko.MCharacterController.Core
 {
     [DisallowMultipleComponent]
-    public class CharacterAbilityController : MonoBehaviour
+    public class MCharacter_Controller_Ability : MonoBehaviour
     {
         [Header("Ability Source")]
 
@@ -61,7 +61,7 @@ namespace Kojiko.MCharacterController.Core
             MCharacter_Motor motor,
             MCharacter_Controller_Root controllerRoot,
             ICcInputSource input,
-            CameraRigBase cameraRig)
+            CameraRig_Base cameraRig)
         {
             _abilities.Clear();
 

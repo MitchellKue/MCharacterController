@@ -48,7 +48,7 @@ namespace Kojiko.MCharacterController.Abilities
             MCharacter_Motor motor,
             MCharacter_Controller_Root controllerRoot,
             ICcInputSource input,
-            CameraRigBase cameraRig);
+            CameraRig_Base cameraRig);
 
         /// <summary>
         /// Called every frame BEFORE CharacterMotor.Step().

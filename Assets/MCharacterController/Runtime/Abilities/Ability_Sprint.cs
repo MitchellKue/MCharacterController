@@ -35,7 +35,7 @@ namespace Kojiko.MCharacterController.Abilities
     /// keeps the motor generic and avoids extra coupling.
     /// </summary>
     [DisallowMultipleComponent]
-    public class SprintAbility : MonoBehaviour, ICharacterAbility
+    public class Ability_Sprint : MonoBehaviour, ICharacterAbility
     {
         [Header("Activation")]
 
@@ -79,7 +79,7 @@ namespace Kojiko.MCharacterController.Abilities
         private MCharacter_Motor _motor;
         private MCharacter_Controller_Root _controllerRoot;
         private ICcInputSource _input;
-        private CameraRigBase _cameraRig;
+        private CameraRig_Base _cameraRig;
         private Transform _characterTransform;
 
         // Cached angle value in radians for faster checks.
@@ -94,7 +94,7 @@ namespace Kojiko.MCharacterController.Abilities
             MCharacter_Motor motor,
             MCharacter_Controller_Root controllerRoot,
             ICcInputSource input,
-            CameraRigBase cameraRig)
+            CameraRig_Base cameraRig)
         {
             _motor = motor;
             _controllerRoot = controllerRoot;

@@ -18,7 +18,7 @@ namespace Kojiko.MCharacterController.Abilities
     /// - Draws a gizmo for the standing capsule / ceiling check.
     /// </summary>
     [DisallowMultipleComponent]
-    public class Ability_FPS_Crouch : MonoBehaviour, ICharacterAbility
+    public class Ability_FPV_Crouch : MonoBehaviour, ICharacterAbility
     {
         [Header("Crouch Settings")]
 
@@ -80,7 +80,7 @@ namespace Kojiko.MCharacterController.Abilities
         private MCharacter_Motor _motor;
         private MCharacter_Controller_Root _controllerRoot;
         private ICcInputSource _input;
-        private CameraRigBase _cameraRig;
+        private CameraRig_Base _cameraRig;
         private CharacterController _characterController;
 
         // Target state we are moving toward (true = crouched, false = standing)
@@ -106,7 +106,7 @@ namespace Kojiko.MCharacterController.Abilities
             MCharacter_Motor motor,
             MCharacter_Controller_Root controllerRoot,
             ICcInputSource input,
-            CameraRigBase cameraRig)
+            CameraRig_Base cameraRig)
         {
             _motor = motor;
             _controllerRoot = controllerRoot;

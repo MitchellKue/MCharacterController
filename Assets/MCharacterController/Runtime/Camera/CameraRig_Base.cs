@@ -19,7 +19,7 @@ namespace Kojiko.MCharacterController.Camera
     /// 2. STEP 2: Handle look input (yaw/pitch) each frame based on provided axes.
     /// 3. STEP 3: Derived classes implement specific camera logic (FPS, TPS).
     /// </summary>
-    public abstract class CameraRigBase : MonoBehaviour
+    public abstract class CameraRig_Base : MonoBehaviour
     {
         /// <summary>
         /// Called from CharacterControllerRoot when the rig is set up.

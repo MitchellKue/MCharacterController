@@ -38,11 +38,11 @@ namespace Kojiko.MCharacterController.Core
         [SerializeField] private MonoBehaviour _inputSourceBehaviour;
 
         [Tooltip("Active camera rig for this character (e.g., FirstPersonCameraRig).")]
-        [SerializeField] private CameraRigBase _cameraRig;
+        [SerializeField] private CameraRig_Base _cameraRig;
 
         [Header("Abilities References")]
         [Tooltip("ability controller.")]
-        [SerializeField] private CharacterAbilityController _abilityController;
+        [SerializeField] private MCharacter_Controller_Ability _abilityController;
 
         // Internal cached interface
         private ICcInputSource _inputSource;

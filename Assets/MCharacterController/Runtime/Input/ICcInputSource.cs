@@ -49,7 +49,7 @@ namespace Kojiko.MCharacterController.Input
         /// True while the jump button is held.
         /// </summary>
         bool JumpHeld { get; }
-
+         
         //CROUCH
         /// <summary>
         /// True only on the frame the crouch button is pressed.
@@ -60,6 +60,17 @@ namespace Kojiko.MCharacterController.Input
         /// True while the crouch button is held.
         /// </summary>
         bool CrouchHeld { get; }
+
+        // AIM
+        /// <summary>
+        /// True while the aim/ADS button is held.
+        /// </summary>
+        bool AimHeld { get; }
+
+        /// <summary>
+        /// True only on the frame the aim/ADS button is pressed.
+        /// </summary>
+        bool AimPressed { get; }
 
         //VIEW MDOE
         /// <summary>

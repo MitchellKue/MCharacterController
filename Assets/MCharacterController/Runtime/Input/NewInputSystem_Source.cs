@@ -1,44 +1,31 @@
 // File: Runtime/Input/NewInputSystemSource.cs
 // Namespace: Kojiko.MCharacterController.Input
-//
-// Summary:
-// 1. Reads input from Unity's New Input System via a PlayerInput component.
-// 2. Implements ICcInputSource so CharacterControllerRoot can consume input generically.
-// 3. Bridges InputAction callbacks/values to simple properties.
-//
-// Dependencies:
-// - UnityEngine.InputSystem.PlayerInput (on the same GameObject).
-// - Actions expected in an action map named "Player":
-//   - "Move"      (Vector2)
-//   - "Look"      (Vector2)
-//   - "Jump"      (Button)
-//   - "Sprint"    (Button)
-//   - "SwitchView" (Button)
-//
-// Used by:
-// - Kojiko.MCharacterController.Core.CharacterControllerRoot.
 
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace Kojiko.MCharacterController.Input
 {
-    /// <summary>
-    /// 1. STEP 1: Get references to PlayerInput and relevant InputActions by name.
-    /// 2. STEP 2: Read current input values (Move, Look, Jump, Sprint, SwitchView).
-    /// 3. STEP 3: Expose these values through the ICcInputSource interface each frame.
-    /// </summary>
     [DisallowMultipleComponent]
     public class NewInputSystem_Source : MonoBehaviour, ICcInputSource
     {
-        [Header("Input Action Map / Action Names")]
+        [Header("Input Action Map")]
         [SerializeField] private string _actionMapName = "Player";
-        [SerializeField] private string _switchViewActionName = "SwitchView";
+
+        [Header("Base Locomotion")]
         [SerializeField] private string _moveActionName = "Move";
-        [SerializeField] private string _lookActionName = "Look";
         [SerializeField] private string _sprintActionName = "Sprint";
+
+        
+        [Header("Base Camera")]
+        [SerializeField] private string _lookActionName = "Look";
+        [SerializeField] private string _switchViewActionName = "SwitchView";
+
+        [Header("Extra Abilities")]
+        [SerializeField] private string _aimActionName = "AimDownSight";
         [SerializeField] private string _jumpActionName = "Jump";
         [SerializeField] private string _crouchActionName = "Crouch";
+
 
         // Internal references
         private PlayerInput _playerInput;
@@ -47,7 +34,8 @@ namespace Kojiko.MCharacterController.Input
         private InputAction _lookAction;
         private InputAction _sprintAction;
         private InputAction _jumpAction;
-        private InputAction _crouchAction; 
+        private InputAction _crouchAction;
+        private InputAction _aimAction;
 
         // Cached values
         private Vector2 _moveAxis;
@@ -56,38 +44,28 @@ namespace Kojiko.MCharacterController.Input
         private bool _sprintHeld;
         private bool _jumpPressed;
         private bool _jumpHeld;
-        private bool _crouchPressed; 
-        private bool _crouchHeld;  
+        private bool _crouchPressed;
+        private bool _crouchHeld;
+        private bool _aimHeld; 
+        private bool _aimPressed; 
 
-        /// <inheritdoc />
         public Vector2 MoveAxis => _moveAxis;
-
-        /// <inheritdoc />
         public Vector2 LookAxis => _lookAxis;
 
-
-        /// <inheritdoc />
         public bool SwitchViewPressed => _switchViewPressed;
 
-
-        /// <inheritdoc />
         public bool SprintHeld => _sprintHeld;
-
-        /// <inheritdoc />
         public bool JumpPressed => _jumpPressed;
-
-        /// <inheritdoc />
         public bool JumpHeld => _jumpHeld;
 
-        /// <inheritdoc />
-        public bool CrouchPressed => _crouchPressed; 
+        public bool CrouchPressed => _crouchPressed;
+        public bool CrouchHeld => _crouchHeld;
 
-        /// <inheritdoc />
-        public bool CrouchHeld => _crouchHeld;      
+        public bool AimHeld => _aimHeld;
+        public bool AimPressed => _aimPressed;
 
         private void Awake()
         {
-            // STEP 1: Get the PlayerInput component on this GameObject.
             _playerInput = GetComponent<PlayerInput>();
             if (_playerInput == null)
             {
@@ -96,7 +74,6 @@ namespace Kojiko.MCharacterController.Input
                 return;
             }
 
-            // STEP 2: Retrieve the specified action map.
             var actionMap = _playerInput.actions.FindActionMap(_actionMapName, throwIfNotFound: false);
             if (actionMap == null)
             {
@@ -105,13 +82,13 @@ namespace Kojiko.MCharacterController.Input
                 return;
             }
 
-            // STEP 3: Cache references to actions by their names.
             _moveAction = actionMap.FindAction(_moveActionName, throwIfNotFound: false);
             _lookAction = actionMap.FindAction(_lookActionName, throwIfNotFound: false);
             _jumpAction = actionMap.FindAction(_jumpActionName, throwIfNotFound: false);
             _sprintAction = actionMap.FindAction(_sprintActionName, throwIfNotFound: false);
             _switchViewAction = actionMap.FindAction(_switchViewActionName, throwIfNotFound: false);
-            _crouchAction = actionMap.FindAction(_crouchActionName, throwIfNotFound: false); // NEW
+            _crouchAction = actionMap.FindAction(_crouchActionName, throwIfNotFound: false);
+            _aimAction = actionMap.FindAction(_aimActionName, throwIfNotFound: false);
 
             if (_moveAction == null || _lookAction == null)
             {
@@ -119,51 +96,47 @@ namespace Kojiko.MCharacterController.Input
                 enabled = false;
                 return;
             }
-
         }
 
         private void OnEnable()
         {
-            // STEP 1: Enable the actions we care about when this component is enabled.
             _moveAction?.Enable();
             _lookAction?.Enable();
             _jumpAction?.Enable();
             _sprintAction?.Enable();
             _switchViewAction?.Enable();
             _crouchAction?.Enable();
+            _aimAction?.Enable(); // NEW
         }
 
         private void OnDisable()
         {
-            // STEP 1: Disable actions when this component is disabled to avoid leaks or warnings.
             _moveAction?.Disable();
             _lookAction?.Disable();
             _jumpAction?.Disable();
             _sprintAction?.Disable();
             _switchViewAction?.Disable();
             _crouchAction?.Disable();
+            _aimAction?.Disable(); // NEW
         }
 
         private void Update()
         {
-            // STEP 1: Read continuous axes (Move, Look).
             _moveAxis = _moveAction != null ? _moveAction.ReadValue<Vector2>() : Vector2.zero;
             _lookAxis = _lookAction != null ? _lookAction.ReadValue<Vector2>() : Vector2.zero;
 
-            // STEP 2: Compute button states (Jump, Sprint, SwitchView).
-            // Jump pressed once per frame:
             _jumpPressed = _jumpAction != null && _jumpAction.WasPressedThisFrame();
             _jumpHeld = _jumpAction != null && _jumpAction.IsPressed();
 
-            // Sprint held:
             _sprintHeld = _sprintAction != null && _sprintAction.IsPressed();
 
-            // Switch view pressed once per frame:
             _switchViewPressed = _switchViewAction != null && _switchViewAction.WasPressedThisFrame();
 
-            // STEP 3: Crouch
             _crouchPressed = _crouchAction != null && _crouchAction.WasPressedThisFrame();
             _crouchHeld = _crouchAction != null && _crouchAction.IsPressed();
+
+            _aimPressed = _aimAction != null && _aimAction.WasPressedThisFrame();
+            _aimHeld = _aimAction != null && _aimAction.IsPressed();
         }
     }
 }
