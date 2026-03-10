@@ -1,3 +1,5 @@
+// File: Runtime/Abilities/CrouchAbilityFPS.cs
+
 using UnityEngine;
 using Kojiko.MCharacterController.Core;
 using Kojiko.MCharacterController.Input;
@@ -12,6 +14,7 @@ namespace Kojiko.MCharacterController.Abilities
     /// - Optional air-crouch.
     /// - Option to use input as toggle or hold.
     /// - Reduces movement speed while crouched by a multiplier.
+    /// - Prevents uncrouching when blocked by a low ceiling.
     /// </summary>
     [DisallowMultipleComponent]
     public class CrouchAbilityFPS : MonoBehaviour, ICharacterAbility
@@ -35,6 +38,14 @@ namespace Kojiko.MCharacterController.Abilities
 
         [Tooltip("If true, crouch input acts as a toggle. If false, crouch is hold-to-crouch.")]
         [SerializeField] private bool _useToggleInput = false;
+
+        [Header("Ceiling Check")]
+
+        [Tooltip("Extra distance to keep from the ceiling when checking if we can stand.")]
+        [SerializeField] private float _uncrouchSkin = 0.02f;
+
+        [Tooltip("Physics layers to check when testing if we can stand up.")]
+        [SerializeField] private LayerMask _ceilingLayers = ~0;
 
         [Header("Camera")]
 
@@ -76,6 +87,9 @@ namespace Kojiko.MCharacterController.Abilities
 
         // Cached initial body scale if not explicitly set.
         private bool _bodyScaleInitialized;
+
+        // Cache last uncrouch-blocked state to avoid spamming logs.
+        private bool _loggedMissingControllerWarning;
 
         public bool IsCrouched => _isCrouched;
 
@@ -180,21 +194,36 @@ namespace Kojiko.MCharacterController.Abilities
                         return;
                     }
 
+                    // If we are currently crouched and want to stand, first check ceiling.
+                    if (_targetCrouchedState && !CanUncrouch())
+                    {
+                        // Block uncrouch; stay crouched.
+                        _targetCrouchedState = true;
+                        return;
+                    }
+
                     _targetCrouchedState = !_targetCrouchedState;
                 }
             }
             else
             {
                 // Hold mode: target crouch state is directly tied to input hold.
-                if (!_allowAirCrouch && !_motor.IsGrounded && crouchHeld)
+                bool desiredCrouch = crouchHeld;
+
+                if (!_allowAirCrouch && !_motor.IsGrounded && desiredCrouch)
                 {
                     // Can't crouch in air, so treat as not crouched while airborne.
-                    _targetCrouchedState = false;
+                    desiredCrouch = false;
                 }
-                else
+
+                // If we're currently crouched and input wants us to stand, check ceiling.
+                if (!desiredCrouch && _targetCrouchedState && !CanUncrouch())
                 {
-                    _targetCrouchedState = crouchHeld;
+                    // Block uncrouch; ignore request.
+                    desiredCrouch = true;
                 }
+
+                _targetCrouchedState = desiredCrouch;
             }
         }
 
@@ -269,6 +298,54 @@ namespace Kojiko.MCharacterController.Abilities
             {
                 desiredMoveWorld *= _crouchSpeedMultiplier;
             }
+        }
+
+        /// <summary>
+        /// Returns true if there is enough space above the character to stand up
+        /// to _standingHeight without intersecting geometry.
+        /// </summary>
+        private bool CanUncrouch()
+        {
+            if (_characterController == null)
+            {
+                if (!_loggedMissingControllerWarning)
+                {
+                    UnityEngine.Debug.LogError("[CrouchAbilityFPS] Cannot perform ceiling check: CharacterController is missing.", this);
+                    _loggedMissingControllerWarning = true;
+                }
+                return true; // Fallback: don't block uncrouch if we can't check.
+            }
+
+            float currentHeight = _characterController.height;
+
+            // If we're already at (or near) standing height, nothing to do.
+            if (currentHeight >= _standingHeight - 0.001f)
+                return true;
+
+            // Compute the capsule we WANT to occupy when standing.
+            Vector3 worldCenter = _characterController.transform.TransformPoint(_characterController.center);
+
+            float radius = _characterController.radius;
+            float standingHalfHeight = _standingHeight * 0.5f;
+
+            // Bottom and top points of the standing capsule
+            Vector3 bottom = worldCenter - Vector3.up * (standingHalfHeight - radius);
+            Vector3 top = worldCenter + Vector3.up * (standingHalfHeight - radius);
+
+            // We cast a very short distance (just skin) to detect overlap.
+            float castDistance = _uncrouchSkin;
+
+            // If this capsule cast hits something, we can't stand.
+            bool hit = Physics.CapsuleCast(
+                point1: bottom,
+                point2: top,
+                radius: radius,
+                direction: Vector3.up,
+                maxDistance: castDistance,
+                layerMask: _ceilingLayers,
+                queryTriggerInteraction: QueryTriggerInteraction.Ignore);
+
+            return !hit;
         }
     }
 }
