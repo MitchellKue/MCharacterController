@@ -373,6 +373,7 @@ GameObject:
   - component: {fileID: 610175634}
   - component: {fileID: 610175635}
   - component: {fileID: 610175636}
+  - component: {fileID: 610175637}
   m_Layer: 0
   m_Name: CharacterController_FPS
   m_TagString: Untagged
@@ -454,11 +455,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _actionMapName: Player
+  _switchViewActionName: SwitchView
   _moveActionName: Move
   _lookActionName: Look
-  _jumpActionName: Jump
   _sprintActionName: Sprint
-  _switchViewActionName: SwitchView
+  _jumpActionName: Jump
+  _crouchActionName: Crouch
 --- !u!114 &610175632
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -522,6 +524,7 @@ MonoBehaviour:
   _abilityBehaviours:
   - {fileID: 610175635}
   - {fileID: 610175636}
+  - {fileID: 610175637}
 --- !u!114 &610175635
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -558,6 +561,29 @@ MonoBehaviour:
   _jumpBufferTime: 0.1
   _isJumping: 0
   _jumpQueued: 0
+--- !u!114 &610175637
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 610175627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 538c4a907fa179a4182ad55bff759faf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _standingHeight: 2
+  _crouchedHeight: 1
+  _crouchLerpSpeed: 10
+  _crouchSpeedMultiplier: 0.5
+  _allowAirCrouch: 1
+  _useToggleInput: 1
+  _cameraTransform: {fileID: 1179845644}
+  _standingCameraLocalY: 1.6
+  _crouchedCameraLocalY: 1
+  _isCrouched: 0
+  _isCrouchingTransition: 0
 --- !u!1 &633763179
 GameObject:
   m_ObjectHideFlags: 0

@@ -33,6 +33,13 @@ namespace Kojiko.MCharacterController.Input
         /// </summary>
         Vector2 LookAxis { get; }
 
+        //SPRINT
+        /// <summary>
+        /// True while the sprint button is held.
+        /// </summary>
+        bool SprintHeld { get; }
+
+        //JUMP
         /// <summary>
         /// True only on the frame the jump button is pressed.
         /// </summary>
@@ -43,11 +50,18 @@ namespace Kojiko.MCharacterController.Input
         /// </summary>
         bool JumpHeld { get; }
 
+        //CROUCH
         /// <summary>
-        /// True while the sprint button is held.
+        /// True only on the frame the crouch button is pressed.
         /// </summary>
-        bool SprintHeld { get; }
+        bool CrouchPressed { get; }
 
+        /// <summary>
+        /// True while the crouch button is held.
+        /// </summary>
+        bool CrouchHeld { get; }
+
+        //VIEW MDOE
         /// <summary>
         /// True only on the frame the view-switch button is pressed.
         /// (Reserved for later FPS/TPS switching.)

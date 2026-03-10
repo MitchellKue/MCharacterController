@@ -33,33 +33,45 @@ namespace Kojiko.MCharacterController.Input
     {
         [Header("Input Action Map / Action Names")]
         [SerializeField] private string _actionMapName = "Player";
+        [SerializeField] private string _switchViewActionName = "SwitchView";
         [SerializeField] private string _moveActionName = "Move";
         [SerializeField] private string _lookActionName = "Look";
-        [SerializeField] private string _jumpActionName = "Jump";
         [SerializeField] private string _sprintActionName = "Sprint";
-        [SerializeField] private string _switchViewActionName = "SwitchView";
+        [SerializeField] private string _jumpActionName = "Jump";
+        [SerializeField] private string _crouchActionName = "Crouch";
 
         // Internal references
         private PlayerInput _playerInput;
+        private InputAction _switchViewAction;
         private InputAction _moveAction;
         private InputAction _lookAction;
-        private InputAction _jumpAction;
         private InputAction _sprintAction;
-        private InputAction _switchViewAction;
+        private InputAction _jumpAction;
+        private InputAction _crouchAction; 
 
         // Cached values
         private Vector2 _moveAxis;
         private Vector2 _lookAxis;
+        private bool _switchViewPressed;
+        private bool _sprintHeld;
         private bool _jumpPressed;
         private bool _jumpHeld;
-        private bool _sprintHeld;
-        private bool _switchViewPressed;
+        private bool _crouchPressed; 
+        private bool _crouchHeld;  
 
         /// <inheritdoc />
         public Vector2 MoveAxis => _moveAxis;
 
         /// <inheritdoc />
         public Vector2 LookAxis => _lookAxis;
+
+
+        /// <inheritdoc />
+        public bool SwitchViewPressed => _switchViewPressed;
+
+
+        /// <inheritdoc />
+        public bool SprintHeld => _sprintHeld;
 
         /// <inheritdoc />
         public bool JumpPressed => _jumpPressed;
@@ -68,10 +80,10 @@ namespace Kojiko.MCharacterController.Input
         public bool JumpHeld => _jumpHeld;
 
         /// <inheritdoc />
-        public bool SprintHeld => _sprintHeld;
+        public bool CrouchPressed => _crouchPressed; 
 
         /// <inheritdoc />
-        public bool SwitchViewPressed => _switchViewPressed;
+        public bool CrouchHeld => _crouchHeld;      
 
         private void Awake()
         {
@@ -99,6 +111,7 @@ namespace Kojiko.MCharacterController.Input
             _jumpAction = actionMap.FindAction(_jumpActionName, throwIfNotFound: false);
             _sprintAction = actionMap.FindAction(_sprintActionName, throwIfNotFound: false);
             _switchViewAction = actionMap.FindAction(_switchViewActionName, throwIfNotFound: false);
+            _crouchAction = actionMap.FindAction(_crouchActionName, throwIfNotFound: false); // NEW
 
             if (_moveAction == null || _lookAction == null)
             {
@@ -107,7 +120,6 @@ namespace Kojiko.MCharacterController.Input
                 return;
             }
 
-            // Optional actions can be missing in early setups (jump/sprint/switch view).
         }
 
         private void OnEnable()
@@ -118,6 +130,7 @@ namespace Kojiko.MCharacterController.Input
             _jumpAction?.Enable();
             _sprintAction?.Enable();
             _switchViewAction?.Enable();
+            _crouchAction?.Enable();
         }
 
         private void OnDisable()
@@ -128,6 +141,7 @@ namespace Kojiko.MCharacterController.Input
             _jumpAction?.Disable();
             _sprintAction?.Disable();
             _switchViewAction?.Disable();
+            _crouchAction?.Disable();
         }
 
         private void Update()
@@ -146,6 +160,10 @@ namespace Kojiko.MCharacterController.Input
 
             // Switch view pressed once per frame:
             _switchViewPressed = _switchViewAction != null && _switchViewAction.WasPressedThisFrame();
+
+            // STEP 3: Crouch
+            _crouchPressed = _crouchAction != null && _crouchAction.WasPressedThisFrame();
+            _crouchHeld = _crouchAction != null && _crouchAction.IsPressed();
         }
     }
 }
