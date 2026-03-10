@@ -10,11 +10,12 @@ namespace Kojiko.MCharacterController.Abilities
     /// <summary>
     /// FPS-style crouch:
     /// - Smoothly lerps CharacterController height and camera height.
-    /// - Optionally scales a visual "body" (capsule mesh) for crouch.
+    /// - Optionally scales and offsets a visual "body" (capsule mesh) for crouch.
     /// - Optional air-crouch.
     /// - Option to use input as toggle or hold.
     /// - Reduces movement speed while crouched by a multiplier.
-    /// - Prevents uncrouching when blocked by a low ceiling.
+    /// - Prevents uncrouching when blocked by a low ceiling (ceiling check).
+    /// - Draws a gizmo for the standing capsule / ceiling check.
     /// </summary>
     [DisallowMultipleComponent]
     public class CrouchAbilityFPS : MonoBehaviour, ICharacterAbility
@@ -60,7 +61,7 @@ namespace Kojiko.MCharacterController.Abilities
 
         [Header("Visual Body")]
 
-        [Tooltip("Optional visual capsule/body to scale when crouching.")]
+        [Tooltip("Optional visual capsule/body to scale and move when crouching.")]
         [SerializeField] private Transform _bodyVisual;
 
         [Tooltip("Local scale of the body visual when standing.")]
@@ -68,6 +69,9 @@ namespace Kojiko.MCharacterController.Abilities
 
         [Tooltip("Local scale of the body visual when crouched.")]
         [SerializeField] private Vector3 _crouchedBodyScale = new Vector3(1f, 0.6f, 1f);
+
+        [Tooltip("How far to move the body visual down on local Y when crouched (meters).")]
+        [SerializeField] private float _bodyMoveAmount = 0.15f;
 
         [Header("Debug State")]
         [SerializeField] private bool _isCrouched;
@@ -85,10 +89,11 @@ namespace Kojiko.MCharacterController.Abilities
         // Cached original CharacterController center so we keep feet on ground.
         private Vector3 _originalCenter;
 
-        // Cached initial body scale if not explicitly set.
+        // Cached initial body scale and position if not explicitly set.
         private bool _bodyScaleInitialized;
+        private Vector3 _bodyOriginalLocalPosition;
 
-        // Cache last uncrouch-blocked state to avoid spamming logs.
+        // Cache warning to avoid log spam.
         private bool _loggedMissingControllerWarning;
 
         public bool IsCrouched => _isCrouched;
@@ -136,9 +141,11 @@ namespace Kojiko.MCharacterController.Abilities
                 _cameraTransform.localPosition = localPos;
             }
 
-            // Initialize body visual scale
+            // Initialize body visual scale and original position
             if (_bodyVisual != null)
             {
+                _bodyOriginalLocalPosition = _bodyVisual.localPosition;
+
                 if (!_bodyScaleInitialized)
                 {
                     // If user left _standingBodyScale as (1,1,1), assume current scale is the "standing" scale.
@@ -151,6 +158,7 @@ namespace Kojiko.MCharacterController.Abilities
                 }
 
                 _bodyVisual.localScale = _standingBodyScale;
+                _bodyVisual.localPosition = _bodyOriginalLocalPosition;
             }
 
             _isCrouched = false;
@@ -238,9 +246,12 @@ namespace Kojiko.MCharacterController.Abilities
                 ? _cameraTransform.localPosition.y
                 : 0f;
 
-            // Decide target body scale
+            // Decide target body scale and vertical offset
             Vector3 targetBodyScale = _targetCrouchedState ? _crouchedBodyScale : _standingBodyScale;
+            float targetBodyYOffset = _targetCrouchedState ? -_bodyMoveAmount : 0f;
+
             Vector3 currentBodyScale = _bodyVisual != null ? _bodyVisual.localScale : Vector3.one;
+            Vector3 currentBodyLocalPos = _bodyVisual != null ? _bodyVisual.localPosition : Vector3.zero;
 
             bool heightChanged = !Mathf.Approximately(currentHeight, targetHeight);
 
@@ -277,15 +288,27 @@ namespace Kojiko.MCharacterController.Abilities
                     _isCrouchingTransition = true;
             }
 
-            // Lerp visual body scale if assigned.
+            // Lerp visual body scale and offset if assigned.
             if (_bodyVisual != null)
             {
                 Vector3 newScale = Vector3.Lerp(currentBodyScale, targetBodyScale, _crouchLerpSpeed * deltaTime);
-                _bodyVisual.localScale = newScale;
 
-                // If body hasn't reached target scale yet, we're still transitioning.
-                if ((newScale - targetBodyScale).sqrMagnitude > 0.0001f)
+                // Lerp local Y towards originalY + targetBodyYOffset
+                float targetBodyLocalY = _bodyOriginalLocalPosition.y + targetBodyYOffset;
+                float newBodyLocalY = Mathf.Lerp(currentBodyLocalPos.y, targetBodyLocalY, _crouchLerpSpeed * deltaTime);
+
+                Vector3 newLocalPos = _bodyOriginalLocalPosition;
+                newLocalPos.y = newBodyLocalY;
+
+                _bodyVisual.localScale = newScale;
+                _bodyVisual.localPosition = newLocalPos;
+
+                // If body hasn't reached target scale or offset yet, we're still transitioning.
+                if ((newScale - targetBodyScale).sqrMagnitude > 0.0001f ||
+                    Mathf.Abs(newBodyLocalY - targetBodyLocalY) > 0.0001f)
+                {
                     _isCrouchingTransition = true;
+                }
             }
 
             // Update final crouched flag for debug
@@ -346,6 +369,37 @@ namespace Kojiko.MCharacterController.Abilities
                 queryTriggerInteraction: QueryTriggerInteraction.Ignore);
 
             return !hit;
+        }
+
+        // --------------------------------------------------------------------
+        // Gizmos
+        // --------------------------------------------------------------------
+
+        private void OnDrawGizmosSelected()
+        {
+            if (_characterController == null)
+            {
+                _characterController = GetComponent<CharacterController>();
+                if (_characterController == null)
+                    return;
+            }
+
+            // Use the same math as in CanUncrouch to visualize the standing capsule height
+            Vector3 worldCenter = _characterController.transform.TransformPoint(_characterController.center);
+
+            float radius = _characterController.radius;
+            float standingHalfHeight = _standingHeight * 0.5f;
+
+            Vector3 bottom = worldCenter - Vector3.up * (standingHalfHeight - radius);
+            Vector3 top = worldCenter + Vector3.up * (standingHalfHeight - radius);
+
+            // Simple red line to show the standing capsule extent / ceiling check.
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(bottom, top);
+
+            // Optionally show the small extra skin above head
+            Vector3 skinTop = top + Vector3.up * _uncrouchSkin;
+            Gizmos.DrawLine(top, skinTop);
         }
     }
 }
