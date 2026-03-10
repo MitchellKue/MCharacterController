@@ -18,7 +18,7 @@ using Kojiko.MCharacterController.Camera;
 namespace Kojiko.MCharacterController.Abilities
 {
     [DisallowMultipleComponent]
-    public class HeadBobAbility : MonoBehaviour, ICharacterAbility
+    public class Ability_FPS_HeadBob : MonoBehaviour, ICharacterAbility
     {
         [Header("Camera Target")]
 
@@ -84,14 +84,14 @@ namespace Kojiko.MCharacterController.Abilities
         [SerializeField] private float _currentPhase;
 
         // Core refs
-        private CharacterMotor _motor;
-        private CharacterControllerRoot _controllerRoot;
+        private MCharacter_Motor _motor;
+        private MCharacter_Controller_Root _controllerRoot;
         private ICcInputSource _input;
         private CameraRigBase _cameraRig;
 
         // Optional ability refs (auto-detected)
         private SprintAbility _sprintAbility;
-        private CrouchAbilityFPS _crouchAbility;
+        private Ability_FPS_Crouch _crouchAbility;
 
         // Baseline local position for the camera (no bob).
         private Vector3 _baseCameraLocalPos;
@@ -102,8 +102,8 @@ namespace Kojiko.MCharacterController.Abilities
         // --------------------------------------------------------------------
 
         public void Initialize(
-            CharacterMotor motor,
-            CharacterControllerRoot controllerRoot,
+            MCharacter_Motor motor,
+            MCharacter_Controller_Root controllerRoot,
             ICcInputSource input,
             CameraRigBase cameraRig)
         {
@@ -144,7 +144,7 @@ namespace Kojiko.MCharacterController.Abilities
             {
                 // Typically abilities are on the same GameObject as CharacterControllerRoot.
                 _sprintAbility = controllerRoot.GetComponent<SprintAbility>();
-                _crouchAbility = controllerRoot.GetComponent<CrouchAbilityFPS>();
+                _crouchAbility = controllerRoot.GetComponent<Ability_FPS_Crouch>();
             }
 
             _currentPhase = 0f;

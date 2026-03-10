@@ -45,8 +45,8 @@ namespace Kojiko.MCharacterController.Abilities
         /// <param name="input">The input source implementing ICcInputSource.</param>
         /// <param name="cameraRig">The active camera rig, if any (may be null).</param>
         void Initialize(
-            CharacterMotor motor,
-            CharacterControllerRoot controllerRoot,
+            MCharacter_Motor motor,
+            MCharacter_Controller_Root controllerRoot,
             ICcInputSource input,
             CameraRigBase cameraRig);
 

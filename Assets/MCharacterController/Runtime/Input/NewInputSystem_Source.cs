@@ -29,7 +29,7 @@ namespace Kojiko.MCharacterController.Input
     /// 3. STEP 3: Expose these values through the ICcInputSource interface each frame.
     /// </summary>
     [DisallowMultipleComponent]
-    public class NewInputSystemSource : MonoBehaviour, ICcInputSource
+    public class NewInputSystem_Source : MonoBehaviour, ICcInputSource
     {
         [Header("Input Action Map / Action Names")]
         [SerializeField] private string _actionMapName = "Player";

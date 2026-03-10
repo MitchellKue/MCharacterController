@@ -76,8 +76,8 @@ namespace Kojiko.MCharacterController.Abilities
         // Internal references
         // --------------------------------------------------------------------
 
-        private CharacterMotor _motor;
-        private CharacterControllerRoot _controllerRoot;
+        private MCharacter_Motor _motor;
+        private MCharacter_Controller_Root _controllerRoot;
         private ICcInputSource _input;
         private CameraRigBase _cameraRig;
         private Transform _characterTransform;
@@ -91,8 +91,8 @@ namespace Kojiko.MCharacterController.Abilities
 
         /// <inheritdoc />
         public void Initialize(
-            CharacterMotor motor,
-            CharacterControllerRoot controllerRoot,
+            MCharacter_Motor motor,
+            MCharacter_Controller_Root controllerRoot,
             ICcInputSource input,
             CameraRigBase cameraRig)
         {

@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class ExplosionTester : MonoBehaviour
 {
-    [SerializeField] private ExplosionKnockback _explosion;
+    [SerializeField] private Explosion_KnockbackAbility _explosion;
 
     private void Update()
     {

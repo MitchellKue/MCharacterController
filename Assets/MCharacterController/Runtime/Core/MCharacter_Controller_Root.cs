@@ -28,11 +28,11 @@ namespace Kojiko.MCharacterController.Core
     /// 3. STEP 3: Convert movement input into world-space direction and invoke CharacterMotor.Step().
     /// </summary>
     [DisallowMultipleComponent]
-    public class CharacterControllerRoot : MonoBehaviour
+    public class MCharacter_Controller_Root : MonoBehaviour
     {
         [Header("Core References")]
         [Tooltip("Movement motor component responsible for handling CharacterController movement.")]
-        [SerializeField] private CharacterMotor _motor;
+        [SerializeField] private MCharacter_Motor _motor;
 
         [Tooltip("Component that implements ICcInputSource (e.g., NewInputSystemSource).")]
         [SerializeField] private MonoBehaviour _inputSourceBehaviour;
@@ -52,7 +52,7 @@ namespace Kojiko.MCharacterController.Core
             // STEP 1: Validate and cache the motor reference.
             if (_motor == null)
             {
-                _motor = GetComponent<CharacterMotor>();
+                _motor = GetComponent<MCharacter_Motor>();
             }
 
             if (_motor == null)

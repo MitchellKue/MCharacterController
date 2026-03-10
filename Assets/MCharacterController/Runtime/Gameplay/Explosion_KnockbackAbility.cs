@@ -14,7 +14,7 @@
 using UnityEngine;
 using Kojiko.MCharacterController.Abilities; // <-- make sure namespace matches your project
 
-public class ExplosionKnockback : MonoBehaviour
+public class Explosion_KnockbackAbility : MonoBehaviour
 {
     [Header("Explosion")]
     [Tooltip("Radius of the explosion effect in world units.")]
@@ -53,7 +53,7 @@ public class ExplosionKnockback : MonoBehaviour
             if (hit == null) continue;
 
             // Try to find ExternalForcesAbility on this collider or its parents.
-            ExternalForcesAbility forces = hit.GetComponentInParent<ExternalForcesAbility>();
+            Ability_ExternalForces forces = hit.GetComponentInParent<Ability_ExternalForces>();
             if (forces == null)
                 continue;
 

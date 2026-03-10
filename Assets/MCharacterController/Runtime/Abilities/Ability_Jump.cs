@@ -13,7 +13,7 @@ namespace Kojiko.MCharacterController.Abilities
     /// NO variable-height logic.
     /// </summary>
     [DisallowMultipleComponent]
-    public class JumpAbility : MonoBehaviour, ICharacterAbility
+    public class Ability_Jump : MonoBehaviour, ICharacterAbility
     {
         [Header("Jump Core")]
 
@@ -37,8 +37,8 @@ namespace Kojiko.MCharacterController.Abilities
         [SerializeField] private bool _isJumping;
         [SerializeField] private bool _jumpQueued;
 
-        private CharacterMotor _motor;
-        private CharacterControllerRoot _controllerRoot;
+        private MCharacter_Motor _motor;
+        private MCharacter_Controller_Root _controllerRoot;
         private ICcInputSource _input;
         private CameraRigBase _cameraRig;
 
@@ -56,8 +56,8 @@ namespace Kojiko.MCharacterController.Abilities
         // --------------------------------------------------------------------
 
         public void Initialize(
-            CharacterMotor motor,
-            CharacterControllerRoot controllerRoot,
+            MCharacter_Motor motor,
+            MCharacter_Controller_Root controllerRoot,
             ICcInputSource input,
             CameraRigBase cameraRig)
         {

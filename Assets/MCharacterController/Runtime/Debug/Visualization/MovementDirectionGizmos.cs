@@ -7,7 +7,7 @@ namespace Kojiko.MCharacterController.Debug
     [ExecuteAlways]
     public class MovementDirectionGizmos : MonoBehaviour
     {
-        [SerializeField] private CharacterMotor _motor;
+        [SerializeField] private MCharacter_Motor _motor;
 
         [Header("Ellipse (Max Speed Shape)")]
         [SerializeField] private Color _ellipseColor = Color.cyan;
@@ -31,7 +31,7 @@ namespace Kojiko.MCharacterController.Debug
         private void EnsureRefs()
         {
             if (_motor == null)
-                _motor = GetComponent<CharacterMotor>();
+                _motor = GetComponent<MCharacter_Motor>();
 
             if (_motor != null && _controller == null)
                 _controller = _motor.GetComponent<CharacterController>();

@@ -58,8 +58,8 @@ namespace Kojiko.MCharacterController.Core
         /// <param name="input">The ICcInputSource for this character.</param>
         /// <param name="cameraRig">The active CameraRigBase (may be null).</param>
         public void Initialize(
-            CharacterMotor motor,
-            CharacterControllerRoot controllerRoot,
+            MCharacter_Motor motor,
+            MCharacter_Controller_Root controllerRoot,
             ICcInputSource input,
             CameraRigBase cameraRig)
         {

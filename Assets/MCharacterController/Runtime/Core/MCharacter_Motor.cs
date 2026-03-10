@@ -17,7 +17,7 @@ namespace Kojiko.MCharacterController.Core
 {
     [RequireComponent(typeof(CharacterController))]
     [DisallowMultipleComponent]
-    public class CharacterMotor : MonoBehaviour
+    public class MCharacter_Motor : MonoBehaviour
     {
         [Header("Movement Speeds")]
         [Tooltip("Maximum forward movement speed on the ground.")]
