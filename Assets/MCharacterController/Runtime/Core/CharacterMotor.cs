@@ -8,12 +8,15 @@
 //    acceleration/deceleration with reduced air acceleration.
 // 4. Maintains grounded state and full velocity vector.
 // 5. Exposes horizontal speed and scalar acceleration for debug systems.
+// 6. Allows external systems (abilities) to inject extra horizontal/vertical velocity
+//    via AddExternalHorizontalVelocity / AddExternalVerticalVelocity.
 
 using UnityEngine;
 
 namespace Kojiko.MCharacterController.Core
 {
     [RequireComponent(typeof(CharacterController))]
+    [DisallowMultipleComponent]
     public class CharacterMotor : MonoBehaviour
     {
         [Header("Movement Speeds")]
@@ -134,6 +137,22 @@ namespace Kojiko.MCharacterController.Core
         /// </summary>
         private bool _hasPrevVelocity;
 
+        // --------------------------------------------------------------------
+        // External velocity contributions
+        // --------------------------------------------------------------------
+
+        /// <summary>
+        /// External horizontal velocity (XZ) added on top of _currentHorizontalVelocity
+        /// for this frame only. Cleared at the end of Step().
+        /// </summary>
+        private Vector3 _externalHorizontalVelocity;
+
+        /// <summary>
+        /// External vertical velocity offset added on top of vertical velocity
+        /// for this frame only. Cleared at the end of Step().
+        /// </summary>
+        private float _externalVerticalVelocityOffset;
+
         private void Awake()
         {
             _characterController = GetComponent<CharacterController>();
@@ -146,7 +165,10 @@ namespace Kojiko.MCharacterController.Core
             CurrentSpeed = 0f;
             CurrentAcceleration = 0f;
 
-            _speedMultiplier = 1f; 
+            _speedMultiplier = 1f;
+
+            _externalHorizontalVelocity = Vector3.zero;
+            _externalVerticalVelocityOffset = 0f;
         }
 
         /// <summary>
@@ -185,6 +207,9 @@ namespace Kojiko.MCharacterController.Core
                 deltaTime
             );
 
+            // Apply external horizontal contribution for this frame.
+            newHorizontal += _externalHorizontalVelocity;
+
             _currentHorizontalVelocity = newHorizontal;
 
             // 3. Vertical velocity (gravity)
@@ -200,6 +225,9 @@ namespace Kojiko.MCharacterController.Core
                 verticalVelocity += _gravity * deltaTime;
             }
 
+            // Apply external vertical offset for this frame.
+            verticalVelocity += _externalVerticalVelocityOffset;
+
             // 4. Combine horizontal + vertical into final velocity.
             _velocity = new Vector3(newHorizontal.x, verticalVelocity, newHorizontal.z);
 
@@ -209,16 +237,59 @@ namespace Kojiko.MCharacterController.Core
             // 6. Move CharacterController.
             Vector3 motion = _velocity * deltaTime;
             _characterController.Move(motion);
+
+            // 7. Clear external contributions so abilities must re-apply each frame.
+            ClearExternalVelocities();
         }
 
         /// <summary>
         /// Allows external systems (e.g., jump ability) to override the vertical velocity.
+        /// External vertical offsets are still added after this inside Step().
         /// </summary>
         public void SetVerticalVelocity(float newVerticalVelocity)
         {
             Vector3 horizontal = _currentHorizontalVelocity;
             _velocity = new Vector3(horizontal.x, newVerticalVelocity, horizontal.z);
         }
+
+        // --------------------------------------------------------------------
+        // External velocity helpers
+        // --------------------------------------------------------------------
+
+        /// <summary>
+        /// Adds an external horizontal velocity contribution in world space (XZ).
+        /// Added on top of the motor's internal horizontal velocity for this frame only.
+        /// Should be called every frame the effect applies.
+        /// </summary>
+        public void AddExternalHorizontalVelocity(Vector3 horizontalVelocity)
+        {
+            horizontalVelocity.y = 0f;
+            _externalHorizontalVelocity += horizontalVelocity;
+        }
+
+        /// <summary>
+        /// Adds an external vertical velocity offset (e.g., knock-up or push-down).
+        /// Added on top of the current vertical velocity for this frame only.
+        /// Should be called every frame the effect applies.
+        /// </summary>
+        public void AddExternalVerticalVelocity(float verticalVelocity)
+        {
+            _externalVerticalVelocityOffset += verticalVelocity;
+        }
+
+        /// <summary>
+        /// Clears all accumulated external velocity contributions (horizontal and vertical).
+        /// Called automatically at the end of Step().
+        /// </summary>
+        public void ClearExternalVelocities()
+        {
+            _externalHorizontalVelocity = Vector3.zero;
+            _externalVerticalVelocityOffset = 0f;
+        }
+
+        // Optional debug accessors if you want them:
+        public Vector3 ExternalHorizontalVelocity => _externalHorizontalVelocity;
+        public float ExternalVerticalVelocityOffset => _externalVerticalVelocityOffset;
 
         // --------------------------------------------------------------------
         // Horizontal movement helpers
@@ -249,7 +320,7 @@ namespace Kojiko.MCharacterController.Core
             float forwardDot = Vector3.Dot(dir, forward); // > 0 forward, < 0 backward
             float rightDot = Vector3.Dot(dir, right);     // > 0 right,   < 0 left
 
-            // --- NEW: cache local multiplier (default 1) ---
+            // Cache multiplier
             float mult = _speedMultiplier;
 
             // Determine directional speeds with multiplier applied.
