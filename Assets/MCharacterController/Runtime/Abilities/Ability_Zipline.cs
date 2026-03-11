@@ -30,6 +30,14 @@ namespace Kojiko.MCharacterController.Abilities
         [Tooltip("Additional forward impulse when exiting the zipline.")]
         [SerializeField] private float _exitForwardImpulse = 3f;
 
+        [Header("Anchor")]
+        [Tooltip("Point on the character that is attached to the zipline (e.g. hands or pulley).")]
+        [SerializeField] private Transform _ziplineAnchor;
+
+        [Tooltip("Final offset (in world space) from the anchor to the zipline itself while zipping.\n" +
+                 "Use this to fine-tune visual alignment (e.g. pull slightly forward or up).")]
+        [SerializeField] private Vector3 _anchorOffset = Vector3.zero;
+
         // Core refs
         private MCharacter_Motor _motor;
         private MCharacter_Controller_Root _controllerRoot;
@@ -98,10 +106,10 @@ namespace Kojiko.MCharacterController.Abilities
         #region Zipline Logic
 
         internal bool BeginZipline(
-            SimpleZiplinePair zipline,
-            MCharacter_Motor motor,
-            Transform startPoint,
-            Transform endPoint)
+    SimpleZiplinePair zipline,
+    MCharacter_Motor motor,
+    Transform startPoint,
+    Transform endPoint)
         {
             if (!_enabled || _isZipping)
                 return false;
@@ -109,7 +117,12 @@ namespace Kojiko.MCharacterController.Abilities
             if (zipline == null || motor == null || startPoint == null || endPoint == null)
                 return false;
 
-            // Snap to start point, face along direction of line
+            if (_ziplineAnchor == null)
+            {
+               UnityEngine.Debug.LogWarning($"{nameof(Ability_Zipline)} on {name} has no Zipline Anchor assigned.");
+                return false;
+            }
+
             Vector3 startPos = startPoint.position;
             Vector3 endPos = endPoint.position;
             Vector3 dir = endPos - startPos;
@@ -119,22 +132,32 @@ namespace Kojiko.MCharacterController.Abilities
             dir.Normalize();
             Quaternion look = Quaternion.LookRotation(dir, Vector3.up);
 
-            _motor.TeleportToPoint(startPos, look);
-            _motor.ClearExternalVelocities();
-            _motor.SetVerticalVelocity(0f);
-
             _currentZipline = zipline;
             _startPos = startPos;
             _endPos = endPos;
             _t = 0f;
             _isZipping = true;
 
+            // Compute where anchor should be at t=0 (start of zipline)
+            Vector3 desiredAnchorPos = _startPos + _anchorOffset;
+
+            // How far is anchor from root in world space right now?
+            Vector3 anchorWorldOffsetFromRoot = _ziplineAnchor.position - _transform.position;
+
+            // Root should move so that anchor hits desiredAnchorPos
+            Vector3 desiredRootPos = desiredAnchorPos - anchorWorldOffsetFromRoot;
+
+            // Teleport motor/root to that position & orientation
+            _motor.TeleportToPoint(desiredRootPos, look);
+            _motor.ClearExternalVelocities();
+            _motor.SetVerticalVelocity(0f);
+
             return true;
         }
 
         private void TickZipline(float deltaTime, ref Vector3 desiredMoveWorld)
         {
-            if (_motor == null)
+            if (_motor == null || _ziplineAnchor == null)
             {
                 EndZipline(false);
                 return;
@@ -156,33 +179,39 @@ namespace Kojiko.MCharacterController.Abilities
 
             if (_t >= 1f)
             {
-                // Reached end
                 _t = 1f;
-                Vector3 endPos = Vector3.Lerp(_startPos, _endPos, _t);
-                Vector3 dir = (_endPos - _startPos).normalized;
-                Quaternion look = Quaternion.LookRotation(dir, Vector3.up);
-
-                _motor.TeleportToPoint(endPos, look);
-                EndZipline(false);
-                return;
             }
 
-            // Move motor along zipline
-            Vector3 currentPos = Vector3.Lerp(_startPos, _endPos, _t);
-            Vector3 direction = (_endPos - _startPos).normalized;
-            Quaternion lookRot = Quaternion.LookRotation(direction, Vector3.up);
+            Vector3 lineDirection = (_endPos - _startPos).normalized;
+            Quaternion lookRot = Quaternion.LookRotation(lineDirection, Vector3.up);
 
-            _motor.TeleportToPoint(currentPos, lookRot);
+            // Compute where along the zipline our anchor should be
+            Vector3 linePoint = Vector3.Lerp(_startPos, _endPos, _t);
+            Vector3 desiredAnchorPos = linePoint + _anchorOffset;
 
-            // Optionally, apply slight gravity if you want a subtle sag feeling;
-            // for now we just set vertical velocity and let motor handle it.
+            // Current offset of anchor from root
+            Vector3 anchorWorldOffsetFromRoot = _ziplineAnchor.position - _transform.position;
+
+            // Root position that makes anchor hit desiredAnchorPos
+            Vector3 desiredRootPos = desiredAnchorPos - anchorWorldOffsetFromRoot;
+
+            // Teleport root to keep anchor exactly on the line
+            _motor.TeleportToPoint(desiredRootPos, lookRot);
+
+            // Optional slight gravity
             if (_ziplineGravity != 0f)
             {
                 _motor.SetVerticalVelocity(_ziplineGravity * deltaTime);
             }
 
-            // Prevent normal move from affecting zipline
+            // Prevent normal movement while zipping
             desiredMoveWorld = Vector3.zero;
+
+            // If we reached the end, stop zipping
+            if (_t >= 1f)
+            {
+                EndZipline(false);
+            }
         }
 
         private void ExitWithImpulse()
@@ -196,7 +225,6 @@ namespace Kojiko.MCharacterController.Abilities
             Vector3 dir = (_endPos - _startPos).normalized;
             Vector3 horizontalDir = new Vector3(dir.x, 0f, dir.z).normalized;
 
-            // Give a small forward push and resume normal gravity
             if (horizontalDir.sqrMagnitude > 0.0001f && _exitForwardImpulse > 0f)
             {
                 _motor.AddExternalHorizontalVelocity(horizontalDir * _exitForwardImpulse);

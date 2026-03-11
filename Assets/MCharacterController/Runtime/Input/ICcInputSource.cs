@@ -42,6 +42,8 @@ namespace Kojiko.MCharacterController.Input
         /// </summary>
         bool SprintHeld { get; }
 
+        bool DashPressed { get; }
+
         //JUMP
         /// <summary>
         /// True only on the frame the jump button is pressed.

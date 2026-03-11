@@ -43,6 +43,15 @@
                     "initialStateCheck": false
                 },
                 {
+                    "name": "Dash",
+                    "type": "Button",
+                    "id": "c96c1a6d-438b-432e-9939-dc7dc65a0255",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Crouch",
                     "type": "Button",
                     "id": "20e2a581-4ddf-452d-a77a-5da2ea81ff37",
@@ -280,6 +289,28 @@
                 },
                 {
                     "name": "",
+                    "id": "15d4832f-6d82-4f77-b9e5-b88d80efd53b",
+                    "path": "<Keyboard>/leftCtrl",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "Dash",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "3698190d-944a-454b-aec1-5f34cf23f274",
+                    "path": "<Gamepad>/leftShoulder",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Gamepad",
+                    "action": "Dash",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "eb40bb66-4559-4dfa-9a2f-820438abb426",
                     "path": "<Keyboard>/space",
                     "interactions": "",
@@ -314,7 +345,7 @@
                 {
                     "name": "",
                     "id": "44a24c60-ac5e-4157-bebb-546ac79bb880",
-                    "path": "<Keyboard>/leftCtrl",
+                    "path": "<Keyboard>/c",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
@@ -380,7 +411,7 @@
                 {
                     "name": "",
                     "id": "a537c227-a2e9-4acf-86ba-57442574be3f",
-                    "path": "<Mouse>/leftButton",
+                    "path": "<Keyboard>/e",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
