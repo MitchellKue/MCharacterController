@@ -29,10 +29,10 @@ namespace Kojiko.MCharacterController.Abilities
         [Tooltip("Which climb behavior this ability should use.")]
         private ClimbMode _mode = ClimbMode.SimpleTeleport;
 
-        [Tooltip("Layers considered climbable when raycasting from character forward.")]
+        [Tooltip("Layers considered climbable when raycasting / searching for climb volumes.")]
         [SerializeField] private LayerMask _climbLayerMask = ~0;
 
-        [Tooltip("Distance in front of the character to search for climb volumes.")]
+        [Tooltip("Distance in front of the character to search for climb volumes when doing a forward check.")]
         [SerializeField] private float _forwardCheckDistance = 0.8f;
 
         [Tooltip("Radius to search for climb volumes when using TryBeginClimb().")]
@@ -49,15 +49,11 @@ namespace Kojiko.MCharacterController.Abilities
         [SerializeField] private float _horizontalSnapSpeed = 20f;
 
         [Header("Detection")]
-        [Tooltip("If true, walking into a climb volume with forward input auto-starts climbing.")]
-        [SerializeField] private bool _autoStartOnForwardMove = true;
-
-        [Tooltip("Angle threshold (degrees) between character forward and climb surface forward to allow auto-start.")]
-        [SerializeField] private float _autoStartMaxAngle = 60f;
-
         [Tooltip("If true, pressing Interact will try to begin climbing the best nearby climb volume.")]
         [SerializeField] private bool _interactToClimb = true;
 
+        [Tooltip("Maximum angle (degrees) allowed between character forward and climb surface forward when starting a climb.")]
+        [SerializeField] private float _maxStartAngle = 60f;
 
         [Header("Debug (Read Only)")]
         [SerializeField, Tooltip("Currently in climbing state.")]
@@ -74,7 +70,6 @@ namespace Kojiko.MCharacterController.Abilities
         private IClimbLookRig _climbLookRig;
 
         private Transform _transform;
-
 
         #region ICharacterAbility
 
@@ -101,6 +96,19 @@ namespace Kojiko.MCharacterController.Abilities
             if (!_enabled || deltaTime <= 0f)
                 return;
 
+            // SIMPLE TELEPORT MODE: Interact to use SimpleClimbPair
+            if (_mode == ClimbMode.SimpleTeleport)
+            {
+                if (_input != null && _input.InteractPressed && _motor != null)
+                {
+                    TryUseSimpleClimbPairs();
+                }
+
+                // Simple teleport doesn't override normal motor movement.
+                return;
+            }
+
+            // FULL CLIMB MODE:
             if (_mode != ClimbMode.FullClimb)
                 return;
 
@@ -112,13 +120,14 @@ namespace Kojiko.MCharacterController.Abilities
             {
                 if (_interactToClimb && _input != null && _input.InteractPressed)
                 {
-                    // Use the explicit TryBeginClimb API, which already
-                    // searches in radius and calls BeginClimb(best).
-                    TryBeginClimb(_searchRadius);
-                }
-                else
-                {
-                    TryAutoStartClimb();
+                    if (!TryBeginClimb(_searchRadius))
+                    {
+                        ClimbVolume volume = FindClimbVolumeInFront();
+                        if (volume != null && CanStartOnVolume(volume))
+                        {
+                            BeginClimb(volume);
+                        }
+                    }
                 }
             }
         }
@@ -140,35 +149,6 @@ namespace Kojiko.MCharacterController.Abilities
         #endregion
 
         #region Core Climb Logic
-
-        private void TryAutoStartClimb()
-        {
-            if (!_autoStartOnForwardMove || _input == null)
-                return;
-
-            Vector2 moveAxis = _input.MoveAxis;
-            if (moveAxis.y <= 0.1f)
-                return; // not pushing forward
-
-            ClimbVolume volume = FindClimbVolumeInFront();
-            if (volume == null)
-                return;
-
-            // alignment check
-            Vector3 charFwd = _transform.forward;
-            charFwd.y = 0f;
-            charFwd.Normalize();
-
-            Vector3 surfaceFwd = volume.SurfaceForward;
-            surfaceFwd.y = 0f;
-            surfaceFwd.Normalize();
-
-            float angle = Vector3.Angle(charFwd, surfaceFwd);
-            if (angle > _autoStartMaxAngle)
-                return;
-
-            BeginClimb(volume);
-        }
 
         private void TickClimbing(float deltaTime, ref Vector3 desiredMoveWorld)
         {
@@ -195,7 +175,7 @@ namespace Kojiko.MCharacterController.Abilities
             // Disable normal gravity by zeroing vertical velocity first.
             _motor.SetVerticalVelocity(0f);
 
-            // Move along climb up direction based on vertical input.
+            // Move along climb up/down direction based on vertical input.
             Vector2 moveAxis = _input.MoveAxis;
             float verticalInput = moveAxis.y;
 
@@ -245,6 +225,43 @@ namespace Kojiko.MCharacterController.Abilities
             Vector3 closest = col.ClosestPoint(_transform.position);
             float distSqr = (closest - _transform.position).sqrMagnitude;
             return distSqr < 1.0f; // tweak threshold
+        }
+
+        private bool CanStartOnVolume(ClimbVolume volume)
+        {
+            if (volume == null)
+                return false;
+
+            // Basic forward alignment check similar to auto-start, but
+            // only used when Interact is pressed.
+            Vector3 charFwd = _transform.forward;
+            charFwd.y = 0f;
+            charFwd.Normalize();
+
+            Vector3 surfaceFwd = volume.SurfaceForward;
+            surfaceFwd.y = 0f;
+            surfaceFwd.Normalize();
+
+            if (charFwd.sqrMagnitude < 0.0001f || surfaceFwd.sqrMagnitude < 0.0001f)
+                return true; // if something is degenerate, don't block interaction
+
+            float angle = Vector3.Angle(charFwd, surfaceFwd);
+            return angle <= _maxStartAngle;
+        }
+
+        private void TryUseSimpleClimbPairs()
+        {
+            // Strategy similar to zipline: find all SimpleClimbPair and
+            // let them decide if this motor is inside their triggers.
+            var pairs = FindObjectsOfType<SimpleClimbPair>();
+            foreach (var pair in pairs)
+            {
+                if (pair.TryUseSimpleClimb(_motor))
+                {
+                    // Once one pair handles it, we can stop.
+                    break;
+                }
+            }
         }
 
         #endregion
@@ -299,6 +316,9 @@ namespace Kojiko.MCharacterController.Abilities
             if (volume == null || _isClimbing)
                 return;
 
+            if (!CanStartOnVolume(volume))
+                return;
+
             _isClimbing = true;
             _currentVolume = volume;
 
@@ -331,8 +351,7 @@ namespace Kojiko.MCharacterController.Abilities
             _isClimbing = false;
             _currentVolume = null;
 
-            // Let motor resume normal behavior. We don't need to explicitly re-enable gravity
-            // because motor always applies it each Step() until we zero vertical velocity.
+            // Let motor resume normal behavior. Gravity is always re-applied by the motor.
 
             if (_climbLookRig != null)
             {
@@ -395,7 +414,6 @@ namespace Kojiko.MCharacterController.Abilities
         [ContextMenu("Disable climbing")]
         public void DisableClimb()
         {
-
             Mode = ClimbMode.Disabled;
         }
 
@@ -405,6 +423,10 @@ namespace Kojiko.MCharacterController.Abilities
             EndClimb();
         }
 
+        /// <summary>
+        /// Attempts to begin climbing the best ClimbVolume within the given radius.
+        /// Returns true if a climb was started.
+        /// </summary>
         public bool TryBeginClimb(float radius)
         {
             if (!_enabled || _isClimbing || _mode != ClimbMode.FullClimb)
@@ -427,6 +449,9 @@ namespace Kojiko.MCharacterController.Abilities
 
                 var volume = col.GetComponentInParent<ClimbVolume>();
                 if (volume == null) continue;
+
+                if (!CanStartOnVolume(volume))
+                    continue;
 
                 float distSqr = (col.bounds.ClosestPoint(_transform.position) - _transform.position).sqrMagnitude;
                 if (distSqr < bestDistSqr)
@@ -466,7 +491,7 @@ namespace Kojiko.MCharacterController.Abilities
 
             forward.Normalize();
 
-            float maxAngle = Mathf.Clamp(_autoStartMaxAngle, 0f, 180f);
+            float maxAngle = Mathf.Clamp(_maxStartAngle, 0f, 180f);
             float distance = Mathf.Max(0.1f, _forwardCheckDistance);
 
             Color baseColor = new Color(1f, 1f, 0f, 0.9f);
@@ -498,8 +523,6 @@ namespace Kojiko.MCharacterController.Abilities
             right.Normalize();
             up = Vector3.Cross(right, forward);
 
-            float halfAngleRad = angleDeg * 0.5f * Mathf.Deg2Rad;
-
             // Main center ray
             Gizmos.DrawLine(origin, origin + forward * length);
 
@@ -514,8 +537,8 @@ namespace Kojiko.MCharacterController.Abilities
             Gizmos.DrawLine(origin, rightV);
             Gizmos.DrawLine(left, rightV);
 
-            // Small arc to visualize the angle
 #if UNITY_EDITOR
+            // Small arc to visualize the angle
             const int segments = 24;
             Vector3 prev = origin + (Quaternion.AngleAxis(-angleDeg * 0.5f, up) * forward) * length;
             for (int i = 1; i <= segments; i++)
@@ -531,7 +554,7 @@ namespace Kojiko.MCharacterController.Abilities
             // Angle label in scene view
             Vector3 labelPos = origin + forward * (length * 0.7f) + up * 0.1f;
             UnityEditor.Handles.color = color;
-            UnityEditor.Handles.Label(labelPos, $" Auto Start Cone ({angleDeg:0}° / {length:0.0}m)");
+            UnityEditor.Handles.Label(labelPos, $" Climb Start Cone ({angleDeg:0}° / {length:0.0}m)");
 #endif
         }
 

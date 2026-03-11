@@ -1,9 +1,10 @@
 // File: Runtime/Environment/SimpleClimbPair.cs
 // Namespace: Kojiko.MCharacterController.Environment
 
-using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using Kojiko.MCharacterController.Core;
+using Kojiko.MCharacterController.Abilities;
 
 namespace Kojiko.MCharacterController.Environment
 {
@@ -11,9 +12,9 @@ namespace Kojiko.MCharacterController.Environment
     /// Extremely simple climb/ladder behavior:
     /// - Two trigger colliders: bottomTrigger, topTrigger.
     /// - Two teleport points: bottomTeleportPoint, topTeleportPoint.
-    /// - When the player enters a trigger and stays for climbDelaySeconds,
-    ///   they are teleported to the opposite end (position + facing).
-    /// - Walking out of the trigger before the delay cancels the teleport.
+    /// - When the player is inside one of the triggers and presses Interact
+    ///   (via Ability_Climb in SimpleTeleport mode), they are teleported
+    ///   to the opposite end (position + facing).
     ///
     /// This is purely visual / positional: no climbing animation logic here.
     /// </summary>
@@ -32,24 +33,12 @@ namespace Kojiko.MCharacterController.Environment
         [SerializeField] private Transform _topTeleportPoint;
 
         [Header("Timing")]
-        [Tooltip("How long the player must stay inside a trigger to complete the climb (seconds).")]
-        [SerializeField] private float _climbDelaySeconds = 0.5f;
+        [Tooltip("Optional delay before teleporting after Interact is pressed (seconds).")]
+        [SerializeField] private float _climbDelaySeconds = 0.0f;
 
-    //   [Header("Target Filter")]
-    //   [Tooltip("Tag used to identify the player object. If empty, any object with MCharacter_Motor is valid.")]
-    //   [SerializeField] private string _playerTag = "Player";
-
-        // Internal: track pending teleports per motor so we can cancel them.
-        private class PendingTeleport
-        {
-            public Coroutine Coroutine;
-            public Collider SourceTrigger;
-        }
-
-        // We can track at most one active player motor per climb volume in many games,
-        // but this dictionary supports multiple if needed.
-        private readonly System.Collections.Generic.Dictionary<MCharacter_Motor, PendingTeleport>
-            _pendingTeleports = new System.Collections.Generic.Dictionary<MCharacter_Motor, PendingTeleport>();
+        // Track which motors are currently inside which trigger.
+        private readonly Dictionary<MCharacter_Motor, Collider> _motorsInTrigger =
+            new Dictionary<MCharacter_Motor, Collider>();
 
         private void Reset()
         {
@@ -73,39 +62,56 @@ namespace Kojiko.MCharacterController.Environment
                 _climbDelaySeconds = 0f;
         }
 
-        private void OnTriggerEnter(Collider other)
-        {
-            // This callback might not fire if the triggers are not on the same GameObject as this script.
-            // To ensure consistent behavior, it's safer to put this script on a parent and have bottom/top
-            // triggers as children with their own Collider components, with "Is Trigger" enabled.
-        }
-
         /// <summary>
-        /// Use trigger callbacks on the specific bottom/top trigger colliders.
-        /// We expose these as public so they can be relayed from child components
-        /// if needed.
+        /// Called by a relay when something enters one of the triggers.
         /// </summary>
-        /// <param name="trigger">The trigger collider that was entered.</param>
-        /// <param name="other">The collider that entered.</param>
         private void HandleTriggerEnter(Collider trigger, Collider other)
         {
-            // Basic filter: tag and/or motor component.
-        //   if (!string.IsNullOrEmpty(_playerTag) && !other.CompareTag(_playerTag))
-        //        return;
-
             var motor = other.GetComponentInParent<MCharacter_Motor>();
             if (motor == null)
                 return;
 
-            // REQUIRE Ability_Climb to be present and enabled
-            var abilityClimb = other.GetComponentInParent<Kojiko.MCharacterController.Abilities.Ability_Climb>();
+            // REQUIRE Ability_Climb to be present and allow simple climb volumes
+            var abilityClimb = other.GetComponentInParent<Ability_Climb>();
             if (abilityClimb == null || !abilityClimb.AllowSimpleClimbVolumes)
                 return;
 
-            // If we already have a pending teleport for this motor, cancel it.
-            CancelPendingTeleport(motor);
+            // Register that this motor is inside this trigger.
+            _motorsInTrigger[motor] = trigger;
+        }
 
-            // Decide target point based on which trigger was entered.
+        /// <summary>
+        /// Called by a relay when something exits one of the triggers.
+        /// </summary>
+        private void HandleTriggerExit(Collider trigger, Collider other)
+        {
+            var motor = other.GetComponentInParent<MCharacter_Motor>();
+            if (motor == null)
+                return;
+
+            if (_motorsInTrigger.TryGetValue(motor, out var storedTrigger))
+            {
+                if (storedTrigger == trigger)
+                {
+                    _motorsInTrigger.Remove(motor);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Called (e.g. by Ability_Climb in SimpleTeleport mode) when the player
+        /// presses Interact. If the motor is currently in one of this pair's
+        /// triggers, perform the appropriate teleport.
+        /// </summary>
+        /// <returns>True if a teleport was performed or scheduled.</returns>
+        public bool TryUseSimpleClimb(MCharacter_Motor motor)
+        {
+            if (motor == null)
+                return false;
+
+            if (!_motorsInTrigger.TryGetValue(motor, out var trigger))
+                return false;
+
             Transform destination = null;
             if (trigger == _bottomTrigger)
             {
@@ -117,78 +123,43 @@ namespace Kojiko.MCharacterController.Environment
             }
 
             if (destination == null)
-                return;
+                return false;
 
-            // Start delayed teleport coroutine.
-            Coroutine c = StartCoroutine(DelayedTeleport(motor, trigger, destination));
-            _pendingTeleports[motor] = new PendingTeleport
+            if (_climbDelaySeconds <= 0f)
             {
-                Coroutine = c,
-                SourceTrigger = trigger
-            };
-        }
-
-        private void HandleTriggerExit(Collider trigger, Collider other)
-        {
-        //   if (!string.IsNullOrEmpty(_playerTag) && !other.CompareTag(_playerTag))
-        //        return;
-
-            var motor = other.GetComponentInParent<MCharacter_Motor>();
-            if (motor == null)
-                return;
-
-            // We don't strictly need to check Ability_Climb here, since
-            // we're just cancelling any pending teleport associated with this motor.
-            if (_pendingTeleports.TryGetValue(motor, out var pending))
-            {
-                if (pending.SourceTrigger == trigger)
-                {
-                    CancelPendingTeleport(motor);
-                }
+                // Instant teleport
+                motor.TeleportToPoint(destination);
             }
+            else
+            {
+                // Optional small delay (no need to track/cancel like before,
+                // because Interact is a one-shot action).
+                StartCoroutine(DelayedTeleport(motor, destination, _climbDelaySeconds));
+            }
+
+            return true;
         }
 
-        private IEnumerator DelayedTeleport(MCharacter_Motor motor, Collider sourceTrigger, Transform destination)
+        private System.Collections.IEnumerator DelayedTeleport(
+            MCharacter_Motor motor,
+            Transform destination,
+            float delay)
         {
-            float delay = Mathf.Max(0f, _climbDelaySeconds);
-
-            float elapsed = 0f;
-            // We don't need to poll anything here; exit is handled by OnTriggerExit cancelling.
-            while (elapsed < delay)
+            float t = 0f;
+            while (t < delay)
             {
-                elapsed += Time.deltaTime;
+                t += Time.deltaTime;
 
-                // If the motor object is destroyed mid-wait, bail out.
-                if (motor == null)
+                if (motor == null || destination == null)
                     yield break;
 
                 yield return null;
             }
 
-            // Still valid: perform teleport.
             if (motor != null && destination != null)
             {
                 motor.TeleportToPoint(destination);
             }
-
-            // Clean up the pending entry if it still exists.
-            if (_pendingTeleports.ContainsKey(motor))
-            {
-                _pendingTeleports.Remove(motor);
-            }
-        }
-
-        private void CancelPendingTeleport(MCharacter_Motor motor)
-        {
-            if (motor == null)
-                return;
-
-            if (_pendingTeleports.TryGetValue(motor, out var pending) && pending.Coroutine != null)
-            {
-                StopCoroutine(pending.Coroutine);
-            }
-
-            _pendingTeleports.Remove(motor);
         }
 
         #region Trigger Relays
@@ -219,9 +190,6 @@ namespace Kojiko.MCharacterController.Environment
 
         #endregion
 
-        // ------------------------------------------------------------
-        // Optional: Gizmos to visualize setup
-        // ------------------------------------------------------------
 #if UNITY_EDITOR
         private void OnDrawGizmos()
         {
