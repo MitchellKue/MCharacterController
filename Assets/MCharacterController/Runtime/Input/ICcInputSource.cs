@@ -21,6 +21,9 @@ namespace Kojiko.MCharacterController.Input
     /// </summary>
     public interface ICcInputSource
     {
+        bool InteractPressed { get; }  // NEW
+        bool InteractHeld { get; }  // NEW
+
         /// <summary>
         /// Horizontal (x) and vertical (y) movement input.
         /// Convention: x = strafe (A/D), y = forward/back (W/S).

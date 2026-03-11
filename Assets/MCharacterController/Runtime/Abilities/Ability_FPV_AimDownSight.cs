@@ -157,7 +157,7 @@ namespace Kojiko.MCharacterController.Abilities
                 // Toggle mode: currently no AimPressed on ICcInputSource.
                 // We could implement this later once you add a pressed property.
                 // For now, we just treat toggle as hold to keep behaviour predictable.
-                //_isAiming = _input.AimHeld;
+                _isAiming = _input.AimHeld;
             }
         }
 

@@ -12,6 +12,8 @@ namespace Kojiko.MCharacterController.Input
         [Header("Input Action Map")]
         [SerializeField] private string _actionMapName = "Player";
 
+        [SerializeField] private string _interactActionName = "Interact";
+
         [Header("Base Locomotion")]
         [SerializeField] private string _moveActionName = "Move";
         [SerializeField] private string _sprintActionName = "Sprint";
@@ -29,6 +31,7 @@ namespace Kojiko.MCharacterController.Input
 
         // Internal references
         private PlayerInput _playerInput;
+        private InputAction _interactAction;
         private InputAction _switchViewAction;
         private InputAction _moveAction;
         private InputAction _lookAction;
@@ -42,10 +45,16 @@ namespace Kojiko.MCharacterController.Input
         private Vector2 _lookAxis;
         private bool _switchViewPressed;
         private bool _sprintHeld;
+        //
+        private bool _interactPressed;
+        private bool _interactHeld;
+        //
         private bool _jumpPressed;
         private bool _jumpHeld;
+        //
         private bool _crouchPressed;
         private bool _crouchHeld;
+        //
         private bool _aimHeld; 
         private bool _aimPressed; 
 
@@ -53,14 +62,18 @@ namespace Kojiko.MCharacterController.Input
         public Vector2 LookAxis => _lookAxis;
 
         public bool SwitchViewPressed => _switchViewPressed;
-
         public bool SprintHeld => _sprintHeld;
+
+        //
+        public bool InteractPressed =>  _interactPressed;
+        public bool InteractHeld =>  _interactHeld;
+        //
         public bool JumpPressed => _jumpPressed;
         public bool JumpHeld => _jumpHeld;
-
+        //
         public bool CrouchPressed => _crouchPressed;
         public bool CrouchHeld => _crouchHeld;
-
+        //
         public bool AimHeld => _aimHeld;
         public bool AimPressed => _aimPressed;
 
@@ -82,14 +95,17 @@ namespace Kojiko.MCharacterController.Input
                 return;
             }
 
-            _moveAction = actionMap.FindAction(_moveActionName, throwIfNotFound: false);
-            _lookAction = actionMap.FindAction(_lookActionName, throwIfNotFound: false);
+            _switchViewAction = actionMap.FindAction(_switchViewActionName, throwIfNotFound: false);
+
+            _interactAction = actionMap.FindAction(_interactActionName, throwIfNotFound: false);
+            
             _jumpAction = actionMap.FindAction(_jumpActionName, throwIfNotFound: false);
             _sprintAction = actionMap.FindAction(_sprintActionName, throwIfNotFound: false);
-            _switchViewAction = actionMap.FindAction(_switchViewActionName, throwIfNotFound: false);
             _crouchAction = actionMap.FindAction(_crouchActionName, throwIfNotFound: false);
             _aimAction = actionMap.FindAction(_aimActionName, throwIfNotFound: false);
 
+            _moveAction = actionMap.FindAction(_moveActionName, throwIfNotFound: false);
+            _lookAction = actionMap.FindAction(_lookActionName, throwIfNotFound: false);
             if (_moveAction == null || _lookAction == null)
             {
                 UnityEngine.Debug.LogError("[NewInputSystemSource] Move and Look actions are required and must exist in the action map.", this);
@@ -106,7 +122,8 @@ namespace Kojiko.MCharacterController.Input
             _sprintAction?.Enable();
             _switchViewAction?.Enable();
             _crouchAction?.Enable();
-            _aimAction?.Enable(); // NEW
+            _aimAction?.Enable(); 
+            _interactAction?.Enable(); 
         }
 
         private void OnDisable()
@@ -117,11 +134,15 @@ namespace Kojiko.MCharacterController.Input
             _sprintAction?.Disable();
             _switchViewAction?.Disable();
             _crouchAction?.Disable();
-            _aimAction?.Disable(); // NEW
+            _aimAction?.Disable(); 
+            _interactAction?.Disable(); 
         }
 
         private void Update()
         {
+            _interactPressed = _interactAction != null && _interactAction.WasPressedThisFrame();
+            _interactHeld = _interactAction != null && _interactAction.IsPressed();
+
             _moveAxis = _moveAction != null ? _moveAction.ReadValue<Vector2>() : Vector2.zero;
             _lookAxis = _lookAction != null ? _lookAction.ReadValue<Vector2>() : Vector2.zero;
 

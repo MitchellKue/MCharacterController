@@ -252,6 +252,54 @@ namespace Kojiko.MCharacterController.Core
             _velocity = new Vector3(horizontal.x, newVerticalVelocity, horizontal.z);
         }
 
+        /// <summary>
+        /// Teleports the character motor to a specific world-space position and rotation.
+        /// This safely disables the CharacterController while adjusting the transform
+        /// to avoid unwanted collisions or motion during the teleport.
+        /// </summary>
+        /// <param name="targetPosition">Destination position in world space.</param>
+        /// <param name="targetRotation">
+        /// Destination rotation in world space. Typically controls the facing direction.
+        /// </param>
+        public void TeleportToPoint(Vector3 targetPosition, Quaternion targetRotation)
+        {
+            if (_characterController == null)
+                return;
+
+            bool wasEnabled = _characterController.enabled;
+
+            // Temporarily disable controller to avoid any unwanted physics overlap handling.
+            _characterController.enabled = false;
+
+            // Set new transform state.
+            transform.SetPositionAndRotation(targetPosition, targetRotation);
+
+            // Reset internal velocities so old motion doesn't carry over.
+            _velocity = Vector3.zero;
+            _currentHorizontalVelocity = Vector3.zero;
+            _prevHorizontalVelocity = Vector3.zero;
+            _hasPrevVelocity = false;
+            CurrentSpeed = 0f;
+            CurrentAcceleration = 0f;
+            ClearExternalVelocities();
+
+            // Re-enable the controller.
+            _characterController.enabled = wasEnabled;
+        }
+
+        /// <summary>
+        /// Convenience overload: teleports the character motor to match the given transform's
+        /// position and forward direction. The full rotation of the targetTransform is applied.
+        /// </summary>
+        /// <param name="targetTransform">Transform whose position and rotation will be used.</param>
+        public void TeleportToPoint(Transform targetTransform)
+        {
+            if (targetTransform == null)
+                return;
+
+            TeleportToPoint(targetTransform.position, targetTransform.rotation);
+        }
+
         // --------------------------------------------------------------------
         // External velocity helpers
         // --------------------------------------------------------------------
@@ -287,7 +335,7 @@ namespace Kojiko.MCharacterController.Core
             _externalVerticalVelocityOffset = 0f;
         }
 
-        // Optional debug accessors if you want them:
+        // debug accessors
         public Vector3 ExternalHorizontalVelocity => _externalHorizontalVelocity;
         public float ExternalVerticalVelocityOffset => _externalVerticalVelocityOffset;
 
