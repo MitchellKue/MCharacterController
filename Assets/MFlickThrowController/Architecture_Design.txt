@@ -1,0 +1,11 @@
+Input Source
+     ↓
+PointerSampler
+     ↓
+FlickAnalyzer
+     ↓
+FlickValidator
+     ↓
+IThrowMappingStrategy
+     ↓
+Rigidbody
